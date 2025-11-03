@@ -1723,7 +1723,17 @@ fi
 # I grow old … I grow old …I shall wear the bottoms of my trousers rolled..
 function configure_dialog_list_arguments(){
     # $1 is the SwiftDialog option to change, $2 is the default value for that option if its not included in the profile
-    if (($dialogListArguments[(Ie)$1])); then
+    local -a customization_array
+    customization_array=(${(z)dialogListArguments})
+    local found=0
+    local token
+    for token in ${customization_array[@]}; do
+        if [[ "$token" == "$1" || "$token" == "$1="* ]]; then
+            found=1
+            break
+        fi
+    done
+    if (( found )); then
         # $1 was included in the customization, so we report it and move along
         log_message "Dialog List Customization Found: $1"
     else
@@ -1774,7 +1784,17 @@ fi
 
 function configure_dialog_success_arguments(){
     # $1 is the SwiftDialog option to change, $2 is the default value for that option if its not included in the profile
-    if (($dialogSuccessArguments[(Ie)$1])); then
+    local -a customization_array
+    customization_array=(${(z)dialogSuccessArguments})
+    local found=0
+    local token
+    for token in ${customization_array[@]}; do
+        if [[ "$token" == "$1" || "$token" == "$1="* ]]; then
+            found=1
+            break
+        fi
+    done
+    if (( found )); then
         # $1 was included in the customization, so we report it and move along
         log_message "Dialog Success Customization Found: $1"
     else
@@ -1819,7 +1839,17 @@ fi
 
 function configure_dialog_failure_arguments(){
     # $1 is the SwiftDialog option to change, $2 is the default value for that option if its not included in the profile
-    if (($dialogFailureArguments[(Ie)$1])); then
+    local -a customization_array
+    customization_array=(${(z)dialogFailureArguments})
+    local found=0
+    local token
+    for token in ${customization_array[@]}; do
+        if [[ "$token" == "$1" || "$token" == "$1="* ]]; then
+            found=1
+            break
+        fi
+    done
+    if (( found )); then
         # $1 was included in the customization, so we report it and move along
         log_message "Dialog Failure Customization Found: $1"
     else
