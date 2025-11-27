@@ -478,6 +478,21 @@ function process_installomator_labels(){
             #This label does not have options defined
             currentArguments=""
         fi
+
+        # Check if we need to hide/show the List View for this item
+        if $pBuddy -c "Print :Installomator:${currentIndex}:HideListView" "$BaselineConfig" > /dev/null 2>&1; then
+            # Hide or show is set
+            local hideListChoice="$($pBuddy -c "Print :Installomator:${currentIndex}:HideListView" "$BaselineConfig")"
+            if [[ "$hideListChoice" == true ]]; then
+                dialog_command "hide:"
+            else
+                dialog_command "show:"
+            fi
+        else
+            # Default is to show
+            dialog_command "show:"
+        fi
+
         #Now we have to do a trick in case there are multiple arguments, some of which are quoted together
         #Consider: /path/to/script.sh --font "Times New Roman"
         #Used the eval trick outlined here: https://superuser.com/questions/1066455/how-to-split-a-string-with-quotes-like-command-arguments-in-bash
@@ -728,6 +743,19 @@ function process_scripts(){
         #Only set the progress label if we're processing Scripts, not InitialScripts since users won't see those
         if [ "$1" = "Scripts" ]; then
             set_progressbar_text "$currentDisplayName"
+            # Check if we need to hide/show the List View for this item
+            if $pBuddy -c "Print :${1}:${currentIndex}:HideListView" "$BaselineConfig" > /dev/null 2>&1; then
+                # Hide or show is set
+                local hideListChoice="$($pBuddy -c "Print :${1}:${currentIndex}:HideListView" "$BaselineConfig")"
+                if [[ "$hideListChoice" == true ]]; then
+                    dialog_command "hide:"
+                else
+                    dialog_command "show:"
+                fi
+            else
+                # Default is to show
+                dialog_command "show:"
+            fi
         fi
 
         #Call our script with our desired options. Default options first, so that they can be overriden by "currentArguments"
@@ -896,6 +924,20 @@ function process_pkgs(){
         #Update the dialog window so that this item shows as "pending"
         dialog_command "listitem: title: $currentDisplayName, status: wait"
         set_progressbar_text "$currentDisplayName"
+
+        # Check if we need to hide/show the List View for this item
+        if $pBuddy -c "Print :Packages:${currentIndex}:HideListView" "$BaselineConfig" > /dev/null 2>&1; then
+            # Hide or show is set
+            local hideListChoice="$($pBuddy -c "Print :Packages:${currentIndex}:HideListView" "$BaselineConfig")"
+            if [[ "$hideListChoice" == true ]]; then
+                dialog_command "hide:"
+            else
+                dialog_command "show:"
+            fi
+        else
+            # Default is to show
+            dialog_command "show:"
+        fi
 
         ## Package validation happens here
         # Check TeamID, if a value has been provided
