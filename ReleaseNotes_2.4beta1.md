@@ -11,7 +11,10 @@ If you're looking to utilize these new features, please test them out and let us
 The #baseline channel on the [Mac Admins Slack](https://macadmins.org) is the best place to get support or give feedback.
 
 ## New Features
-- 
+- Added the ability to dynamically hide or show the DIalogListView while processing items.
+    - Use `HideListView` boolean for any item in `Scripts` `Installomator` or `Packages` to hide the list view while that item runs
+    - Note: Some versions of SwiftDialog appear to have bugs related to this feature along with `--blurscreen`.
+
 
 ## Improvements
 - 
