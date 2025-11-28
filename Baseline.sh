@@ -290,6 +290,13 @@ function dialog_command(){
     sleep .1
 }
 
+function dialog_status(){
+    # $1 is the item name
+    # $2 is the status to apply 
+    dialog_command "listitem: title: ${1}, status: ${2}"        
+
+}
+
 #This function is modified from the awesome one given to us via Adam Codega. Thanks Adam!
 #https://github.com/acodega/dialog-scripts/blob/main/dialogCheckFunction.sh
 
@@ -458,6 +465,28 @@ function build_installomator_array(){
     done
 }
 
+function set_current_list_icons(){
+        ## Check for custom status icon for this item
+        # $1 = category of item we are processing
+        # Defaults
+        currentStatusIconWait="${globalStatusIconWait}"
+        currentStatusIconSuccess="${globalStatusIconSuccess}"
+        currentStatusIconFail="${globalStatusIconFail}"
+
+        # If custom values are in the profile, use them
+        if $pBuddy -c "Print :${1}:${currentIndex}:StatusIconWait" "$BaselineConfig" > /dev/null 2>&1; then
+            currentStatusIconWait=$($pBuddy -c "Print :${1}:${currentIndex}:StatusIconWait" "$BaselineConfig")
+        fi
+
+        if $pBuddy -c "Print :${1}:${currentIndex}:StatusIconSuccess" "$BaselineConfig" > /dev/null 2>&1; then
+            currentStatusIconSuccess=$($pBuddy -c "Print :${1}:${currentIndex}:StatusIconSuccess" "$BaselineConfig")
+        fi
+
+        if $pBuddy -c "Print :${1}:${currentIndex}:StatusIconFail" "$BaselineConfig" > /dev/null 2>&1; then
+            currentStatusIconFail=$($pBuddy -c "Print :${1}:${currentIndex}:StatusIconFail" "$BaselineConfig")
+        fi
+}
+
 function process_installomator_labels(){
     #Set an index internal to this function
     currentIndex=0
@@ -478,6 +507,9 @@ function process_installomator_labels(){
             #This label does not have options defined
             currentArguments=""
         fi
+
+        ## Check for custom status icon for this item
+        set_current_list_icons Installomator
 
         # Check if we need to hide/show the List View for this item
         if $pBuddy -c "Print :Installomator:${currentIndex}:HideListView" "$BaselineConfig" > /dev/null 2>&1; then
@@ -512,7 +544,7 @@ function process_installomator_labels(){
             currentArgumentArray+=DIALOG_LIST_ITEM_NAME=\"$currentDisplayName\"
         else
             #Update the dialog window so that this item shows as "pending"
-            dialog_command "listitem: title: $currentDisplayName, status: wait"        
+            dialog_status "$currentDisplayName" "${currentStatusIconWait}"        
         fi
         
         set_progressbar_text "$currentDisplayName"
@@ -524,13 +556,13 @@ function process_installomator_labels(){
             failList+=("$currentDisplayName")
             # If we're NOT using the integrated SwiftDialog, then
             if  [[ $useInstallomatorSwiftDialogIntegration != "true" ]]; then
-                dialog_command "listitem: title: $currentDisplayName, status: fail"
+                dialog_status "$currentDisplayName" "${currentStatusIconFail}"
             fi
         else
             report_message "Successful Item - Installomator: $currentLabel"
             successList+=("$currentDisplayName")
             if  [[ $useInstallomatorSwiftDialogIntegration != "true" ]]; then
-                dialog_command "listitem: title: $currentDisplayName, status: success"
+                dialog_status "$currentDisplayName" "${currentStatusIconSuccess}"
             fi
        fi
         update_tracker "$currentDisplayName" $installomatorExitCode
@@ -632,6 +664,10 @@ function process_scripts(){
         currentScriptPath=$($pBuddy -c "Print :${1}:${currentIndex}:ScriptPath" "$BaselineConfig")
         #Set where we are running in the user context or root
         asUser=$($pBuddy -c "Print :${1}:${currentIndex}:AsUser" "$BaselineConfig" 2> /dev/null)
+
+        ## Check for custom status icon for this item
+        set_current_list_icons Scripts
+
         #Check if the defined script is a remote path
         if [[ ${currentScriptPath:0:4} == "http" ]]; then
             #Set variable to the base file name to be downloaded
@@ -665,7 +701,7 @@ function process_scripts(){
             currentIndex=$((currentIndex+1))
             increment_progress_bar
             # Report the fail
-            dialog_command "listitem: title: $currentDisplayName, status: fail"
+            dialog_status "$currentDisplayName" "${currentStatusIconFail}"
             failList+=("$currentDisplayName")
             update_tracker $currentDisplayName 99
             # Bail this pass through the while loop and continue processing next item
@@ -692,7 +728,7 @@ function process_scripts(){
                     increment_progress_bar
                 fi
                 # Report the fail
-                dialog_command "listitem: title: $currentDisplayName, status: fail"
+                dialog_status "$currentDisplayName" "${currentStatusIconFail}"
                 failList+=("$currentDisplayName")
                 # Bail this pass through the while loop and continue processing next item
                 continue
@@ -715,7 +751,7 @@ function process_scripts(){
                     increment_progress_bar
                 fi
                 # Report the fail
-                dialog_command "listitem: title: $currentDisplayName, status: fail"
+                dialog_status "$currentDisplayName" "${currentStatusIconFail}"
                 failList+=("$currentDisplayName")
                 # Bail this pass through the while loop and continue processing next item
                 continue
@@ -738,7 +774,7 @@ function process_scripts(){
         fi
 
         #Update the dialog window so that this item shows as "pending"
-        dialog_command "listitem: title: $currentDisplayName, status: wait"
+        dialog_status "$currentDisplayName" "${currentStatusIconWait}"
 
         #Only set the progress label if we're processing Scripts, not InitialScripts since users won't see those
         if [ "$1" = "Scripts" ]; then
@@ -775,11 +811,11 @@ function process_scripts(){
         scriptExitCode=$?
         if [ $scriptExitCode != 0 ]; then
             report_message "Failed Item - Script runtime error: $currentScript - Exit Code: $scriptExitCode"
-            dialog_command "listitem: title: $currentDisplayName, status: fail"
+            dialog_status "$currentDisplayName" "${currentStatusIconFail}"
             failList+=("$currentDisplayName")
         else
             report_message "Successful Item - Script: $currentScript"
-            dialog_command "listitem: title: $currentDisplayName, status: success"
+            dialog_status "$currentDisplayName" "${currentStatusIconSuccess}"
             successList+=("$currentDisplayName")
         fi
         update_tracker $currentDisplayName $scriptExitCode
@@ -832,7 +868,10 @@ function process_pkgs(){
         currentDisplayName=$($pBuddy -c "Print :Packages:${currentIndex}:DisplayName" "$BaselineConfig")
         #Set the current package path
         currentPKGPath=$($pBuddy -c "Print :Packages:${currentIndex}:PackagePath" "$BaselineConfig")
-        
+
+        ## Check for custom status icon for this item
+        set_current_list_icons Packages
+
         ##Here is where we begin checking what kind of PKG was defined, and how to process it
         ##The end result of this chunk of code, is that we have a valid path to a PKG on the file system
         ##Else we bail and continue looping to install the next item
@@ -857,7 +896,7 @@ function process_pkgs(){
                 currentIndex=$((currentIndex+1))
                 increment_progress_bar
                 # Report the fail
-                dialog_command "listitem: title: $currentDisplayName, status: fail"
+                dialog_status "$currentDisplayName" "${currentStatusIconFail}"
                 # Bail this pass through the while loop and continue processing next item
                 continue
             else
@@ -876,7 +915,7 @@ function process_pkgs(){
             currentPKG="$BaselinePackages/$currentPKGPath"
         else
             report_message "Failed Item - Package does not exist: $currentPKGPath"
-            dialog_command "listitem: title: $currentDisplayName, status: fail"
+            dialog_status "$currentDisplayName" "${currentStatusIconFail}"
             failList+=("$currentDisplayName")
             currentIndex=$((currentIndex+1))
             increment_progress_bar
@@ -922,7 +961,7 @@ function process_pkgs(){
             expectedMD5=""
         fi
         #Update the dialog window so that this item shows as "pending"
-        dialog_command "listitem: title: $currentDisplayName, status: wait"
+        dialog_status "$currentDisplayName" "${currentStatusIconWait}"
         set_progressbar_text "$currentDisplayName"
 
         # Check if we need to hide/show the List View for this item
@@ -947,13 +986,12 @@ function process_pkgs(){
             # Check if actual does not match expected
             if [ "$expectedTeamID" != "$actualTeamID" ]; then
                 report_message "Failed Item - Package TeamID error: $currentPKG - Expected - $expectedTeamID Actual - $actualTeamID"
-                dialog_command "listitem: title: $currentDisplayName, status: fail"
                 failList+=("$currentDisplayName")
                 # Iterate the index up one
                 currentIndex=$((currentIndex+1))
                 increment_progress_bar
                 # Report the fail
-                dialog_command "listitem: title: $currentDisplayName, status: fail"
+                dialog_status "$currentDisplayName" "${currentStatusIconFail}"
                 # Bail this pass through the while loop and continue processing next item
                 continue
             else
@@ -968,13 +1006,12 @@ function process_pkgs(){
             # Check if actual does not match expected
             if [ "$expectedSHA256" != "$actualSHA256" ]; then
                 report_message "Failed Item - Package SHA256 error: $currentPKG - Expected - $expectedSHA256 Actual - $actualSHA256"
-                dialog_command "listitem: title: $currentDisplayName, status: fail"
                 failList+=("$currentDisplayName")
                 # Iterate the index up one
                 currentIndex=$((currentIndex+1))
                 increment_progress_bar
                 # Report the fail
-                dialog_command "listitem: title: $currentDisplayName, status: fail"
+                dialog_status "$currentDisplayName" "${currentStatusIconFail}"
                 update_tracker $currentDisplayName 99
                 # Bail this pass through the while loop and continue processing next item
                 continue
@@ -990,13 +1027,13 @@ function process_pkgs(){
             # Check if actual does not match expected
             if [ "$expectedMD5" != "$actualMD5" ]; then
                 report_message "Failed Item - Package MD5 error: $currentPKG - Expected - $expectedMD5 Actual - $actualMD5"
-                dialog_command "listitem: title: $currentDisplayName, status: fail"
+                dialog_status "$currentDisplayName" "${currentStatusIconFail}"
                 failList+=("$currentDisplayName")
                 # Iterate the index up one
                 currentIndex=$((currentIndex+1))
                 increment_progress_bar
                 # Report the fail
-                dialog_command "listitem: title: $currentDisplayName, status: fail"
+                dialog_status "$currentDisplayName" "${currentStatusIconFail}"
                 update_tracker $currentDisplayName 99
                 # Bail this pass through the while loop and continue processing next item
                 continue
@@ -1012,11 +1049,11 @@ function process_pkgs(){
         # Verify the install completed successfully
         if [ $pkgExitCode != 0 ]; then
             report_message "Failed Item - Package installation error: $currentPKG - Exit Code: $pkgExitCode"
-            dialog_command "listitem: title: $currentDisplayName, status: fail"
+            dialog_status "$currentDisplayName" "${currentStatusIconFail}"
             failList+=("$currentDisplayName")
         else
             report_message "Successful Item - Package: $currentPKG"
-            dialog_command "listitem: title: $currentDisplayName, status: success"
+            dialog_status "$currentDisplayName" "${currentStatusIconSuccess}"
             successList+=("$currentDisplayName")
         fi
         update_tracker $currentDisplayName $pkgExitCode
@@ -1466,7 +1503,13 @@ function process_wait_for_items(){
         waitForDisplayNames+=$("$pBuddy" -c "Print WaitFor:${waitCount}:DisplayName" "$BaselineConfig")
         waitCount=$(( waitCount + 1 ))
     done
-    
+
+    waitForPendingIcon=""
+    waitForPendingIcon="pending" #^^^
+
+    for pendingDisplayName in "${waitForDisplayNames[@]}"; do
+        dialog_status "${pendingDisplayName}" "${waitForPendingIcon}"
+    done
     # Put all of our WaitFor items into spinny wait mode
     #for waitForDisplayName in "${waitForDisplayNames[@]}"; do
     #   dialog_command "listitem: title: $waitForDisplayName, status: wait"
@@ -1488,6 +1531,7 @@ function process_wait_for_items(){
                     debug_message "Removing from waitForDisplayNames: $waitForDisplayNames[${indexItemToRemove}] index: ${indexItemToRemove}"
                     # Mark the item as complete
                     dialog_command "listitem: title: $waitForDisplayNames[$indexItemToRemove], status: success"
+                    dialog_status "$waitForDisplayNames[$indexItemToRemove]" "${globalStatusIconSuccess}"
                     report_message "Successful Item - WaitFor: $waitForDisplayNames[$indexItemToRemove]"
                     successList+=("$waitForDisplayNames[$indexItemToRemove]")
                     increment_progress_bar
@@ -1808,6 +1852,25 @@ fi
 
 if [ "$progressBarDisplayNames" = "true" ]; then
     configure_dialog_list_arguments "--progresstext" ' '
+fi
+
+## Configure Glboal Status Icon Variables
+# Defaults
+globalStatusIconWait="wait"
+globalStatusIconSuccess="success"
+globalStatusIconFail="fail"
+
+# If custom values are in the profile, use them
+if $pBuddy -c "Print GlobalDialogStatusIconWait" "$BaselineConfig" > /dev/null 2>&1; then
+    globalStatusIconWait=$($pBuddy -c "Print GlobalDialogStatusIconWait" "$BaselineConfig")
+fi
+
+if $pBuddy -c "Print GlobalDialogStatusIconSuccess" "$BaselineConfig" > /dev/null 2>&1; then
+    globalStatusIconSuccess=$($pBuddy -c "Print GlobalDialogStatusIconSuccess" "$BaselineConfig")
+fi
+
+if $pBuddy -c "Print GlobalDialogStatusIconFail" "$BaselineConfig" > /dev/null 2>&1; then
+    globalStatusIconFail=$($pBuddy -c "Print GlobalDialogStatusIconFail" "$BaselineConfig")
 fi
 
 #########################################
