@@ -1227,14 +1227,10 @@ function increment_progress_bar(){
     # If we're not displaying the progress bar, skip
     if [ "$showProgressBar" != "true" ]; then
         return
+    else
+        dialog_command "progress: increment"
+        return 
     fi
-
-    # Increment progress bar
-    progressBarValue=$((progressBarValue+1))
-    # Do the math to determine total progress bar size for real increment
-    progressBarPercentage=$((progressBarValue*100/progressBarTotal))
-    
-    dialog_command "progress: $progressBarPercentage"
 }
 
 function set_progressbar_text(){
@@ -1505,7 +1501,6 @@ function process_wait_for_items(){
     done
 
     waitForPendingIcon=""
-    waitForPendingIcon="pending" #^^^
 
     for pendingDisplayName in "${waitForDisplayNames[@]}"; do
         dialog_status "${pendingDisplayName}" "${waitForPendingIcon}"
@@ -1714,7 +1709,8 @@ pkgValidations=()
 
 # Initiate integers
 progressBarValue=0
-progressBarTotal=0
+# Start at 1 to ensure proper count
+progressBarTotal=1
 
 # Initiate bools
 showProgressBar="false"
@@ -1845,10 +1841,6 @@ configure_dialog_list_arguments "--icon" "/System/Library/CoreServices/KeyboardS
 configure_dialog_list_arguments "--width" 900
 configure_dialog_list_arguments "--height" 550
 configure_dialog_list_arguments "--quitkey" ']'
-
-if [ "$showProgressBar" = "true" ]; then
-    configure_dialog_list_arguments "--progress"
-fi
 
 if [ "$progressBarDisplayNames" = "true" ]; then
     configure_dialog_list_arguments "--progresstext" ' '
@@ -1997,6 +1989,12 @@ build_dialog_list_options
 ##################################
 #   Draw our dialog list window  #
 ##################################
+
+# Add final dialog options for progress bar size
+if [ "$showProgressBar" = "true" ]; then
+    finalListCommand+="--progress"
+    finalListCommand+="$progressBarTotal"
+fi
 
 #Create our initial Dialog Window. Do this in an "until" loop, and attempts 10 times before exiting in case it fails to launch for some reason
 dialogAttemptCount=1

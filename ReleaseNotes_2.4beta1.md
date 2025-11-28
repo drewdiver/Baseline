@@ -38,6 +38,7 @@ The #baseline channel on the [Mac Admins Slack](https://macadmins.org) is the be
 ## Bug Fixes
 - Fixed an issue with Dialog options handling where using `--messagefont` would string match with `--message` causing the default Baseline messaging to be lost.
     - Huge thanks to @george-elphick-talieisin #103
+- Fixed an issue with `WaitFor` items throwing off the progress bar.
 
 ## Known Issue:
-- WaitFor items do not interact properly with the progress bar.
+
