@@ -31,6 +31,9 @@ The #baseline channel on the [Mac Admins Slack](https://macadmins.org) is the be
         - `StatusIconFail`
     - Any item without one of these keys will use the default for that status.
     - This feature requires SwiftDialog 3.0, which is pending official release.
+- Added the ability to skip the final Success or Fail windows entirely
+    - `SkipSuccessDialog` is a new top level `boolean` key that defaults to false
+    - `SkipFailDialog` is a new top level `boolean` key that defaults to false
 
 ## Improvements
 - Cleaned up code for sending status updates

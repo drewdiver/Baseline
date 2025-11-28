@@ -1243,6 +1243,18 @@ function set_progressbar_text(){
 }
 
 function present_failure_window(){
+    # Checking if we are skipping the success window
+    if $pBuddy -c "Print :SkipFailDialog" "$BaselineConfig" > /dev/null 2>&1; then
+        skipFailDialog=$($pBuddy -c "Print :SkipFailDialog" "$BaselineConfig")
+    else
+        skipFailDialog="false"
+    fi
+
+    if [[ "$skipFailDialog" == true ]]; then
+        log_message "Skipping Fail window"
+        return 0
+    fi
+
     #There was at least one failed item. Build fail list
     failListItems=()
     for i in ${failList[@]}; do
@@ -1274,6 +1286,18 @@ function present_failure_window(){
 }
 
 function present_success_window(){
+    # Checking if we are skipping the success window
+    if $pBuddy -c "Print :SkipSuccessDialog" "$BaselineConfig" > /dev/null 2>&1; then
+        skipSuccessDialog=$($pBuddy -c "Print :SkipSuccessDialog" "$BaselineConfig")
+    else
+        skipSuccessDialog="false"
+    fi
+
+    if [[ "$skipSuccessDialog" == true ]]; then
+        log_message "Skipping success window"
+        return 0
+    fi
+
     #Create our Success Dialog Window. We use a "while" loop and a nested if/then in order to bail if there's a configuration file problem.
     #Set a timer for our attempts
     dialogAttemptCount=1
