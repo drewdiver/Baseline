@@ -1,5 +1,4 @@
 #!/bin/zsh --no-rcs
-set -x
 #dryRun=true
 
 #   Written by Trevor Sysock of Second Son Consulting
@@ -31,6 +30,13 @@ scriptVersion="2.4beta1"
 # SOFTWARE.
 # 
 
+if [[ "$1" == "--version" ]]; then
+    echo "$scriptVersion"
+    exit 0
+fi
+# Configuring verbose mode
+set -x
+
 ########################################################################################################
 ########################################################################################################
 ##
@@ -38,11 +44,6 @@ scriptVersion="2.4beta1"
 ##
 ########################################################################################################
 ########################################################################################################
-
-if [ "${1}" = '--version' ]; then
-    echo "$(basename $0) by Second Son Consulting - v. $scriptVersion"
-    exit 0
-fi
 
 #################################
 #   Declare file/folder paths   #
