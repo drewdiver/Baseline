@@ -802,11 +802,11 @@ function process_scripts(){
                 log_message "Script set to run asUser but no user logged in: $currentScript"
                 /usr/bin/false
             else
-                log_message "Running Script: $currentScript as $currentUser with arguments: ${currentArgumentArray[@]}"
+                log_message "Running Script: as current user - $currentUser: $currentScript ${currentArgumentArray[@]}"
                 /bin/launchctl asuser "$currentUserUID" sudo -u "$currentUser" "$currentScript" ${currentArgumentArray[@]} >> "$ScriptOutputLog" 2>&1
             fi
         else
-            log_message "Running Script: $currentScript as root with arguments: ${currentArgumentArray[@]}"
+            log_message "Running Script: as root: $currentScript ${currentArgumentArray[@]}"
             "$currentScript" ${currentArgumentArray[@]} >> "$ScriptOutputLog" 2>&1
         fi
         scriptExitCode=$?
@@ -841,6 +841,7 @@ function process_scripts(){
             fi
         fi
     done
+    
 }
 
 function process_pkgs(){
@@ -1660,6 +1661,7 @@ done
 verify_configuration_file
 check_silent_option
 initiate_tracker_file
+check_exit_condition
 
 #############################################
 #   Configure Default Installomator Options #
@@ -1752,7 +1754,7 @@ process_scripts InitialScripts
 
 #Check if a custom plist was delivered/altered during InitialScripts
 check_for_custom_plist
-
+check_bail_out_configuration
 #We check for Installomator again, to support custom plist swapping
 if $pBuddy -c "Print :Installomator:0" "$BaselineConfig" > /dev/null 2>&1; then
     install_installomator
@@ -1862,7 +1864,7 @@ fi
 
 configure_dialog_list_arguments "--title" "Your computer setup is underway"
 configure_dialog_list_arguments "--message" "$defaultListMessage"
-configure_dialog_list_arguments "--icon" "/System/Library/CoreServices/KeyboardSetupAssistant.app/Contents/Resources/AppIcon.icns"
+configure_dialog_list_arguments "--icon" "computer"
 configure_dialog_list_arguments "--width" 900
 configure_dialog_list_arguments "--height" 550
 configure_dialog_list_arguments "--quitkey" ']'
@@ -1927,7 +1929,7 @@ function configure_dialog_success_arguments(){
 }
 
 configure_dialog_success_arguments "--title" "Your computer setup is complete"
-configure_dialog_success_arguments "--icon" "/System/Library/CoreServices/KeyboardSetupAssistant.app/Contents/Resources/AppIcon.icns"
+configure_dialog_success_arguments "--icon" "computer"
 configure_dialog_success_arguments "--quitkey" ']'
 # Different values for --message and --button1text if we're forcing log out or restart
 if $forceLogOut; then
@@ -1982,7 +1984,7 @@ function configure_dialog_failure_arguments(){
 }
 
 configure_dialog_failure_arguments "--title" "Your computer setup is complete"
-configure_dialog_failure_arguments "--icon" "/System/Library/CoreServices/KeyboardSetupAssistant.app/Contents/Resources/AppIcon.icns"
+configure_dialog_failure_arguments "--icon" "computer"
 configure_dialog_failure_arguments "--message" "Your computer setup is complete, however not everything was installed as expected. Review the list below, and contact IT if you need assistance."
 configure_dialog_failure_arguments "--quitkey" ']'
 
@@ -2010,6 +2012,8 @@ build_dialog_array WaitFor
 build_dialog_json_file
 build_dialog_list_options
 
+# Check again for bailout after Initial Scripts and after building FailDialog window options
+check_for_bail_out
 
 ##################################
 #   Draw our dialog list window  #

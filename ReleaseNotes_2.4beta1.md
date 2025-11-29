@@ -34,6 +34,9 @@ The #baseline channel on the [Mac Admins Slack](https://macadmins.org) is the be
 - Added the ability to skip the final Success or Fail windows entirely
     - `SkipSuccessDialog` is a new top level `boolean` key that defaults to false
     - `SkipFailDialog` is a new top level `boolean` key that defaults to false
+- New default icon for all windows.
+    - Apple changed the "Keyboard Assistant" icon Baseline used by default, changing the Tuxedo/Butler to a green checkmark.
+    - Baseline will now use the swiftDialog built-in of `computer` which shows an icon in the style of the computer it's running on.
 
 ## Improvements
 - Cleaned up code for sending status updates
@@ -43,6 +46,7 @@ The #baseline channel on the [Mac Admins Slack](https://macadmins.org) is the be
 - Fixed an issue with Dialog options handling where using `--messagefont` would string match with `--message` causing the default Baseline messaging to be lost.
     - Huge thanks to @george-elphick-talieisin #103
 - Fixed an issue with `WaitFor` items throwing off the progress bar.
+- Fixed edge case timing issues with BailOut and ExitCondition checks happening at inappropriate times
 
 ## Known Issue:
 
