@@ -41,6 +41,8 @@ The #baseline channel on the [Mac Admins Slack](https://macadmins.org) is the be
 ## Improvements
 - Cleaned up code for sending status updates
 - `--version` argument now prints only the script version and exits
+- Dialog version now printed to the log and report
+- 
 
 ## Bug Fixes
 - Fixed an issue with Dialog options handling where using `--messagefont` would string match with `--message` causing the default Baseline messaging to be lost.

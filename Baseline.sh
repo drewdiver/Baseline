@@ -1698,6 +1698,8 @@ install_dialog
 #If swiftDialog still isn't installed, exit with an error
 if [ ! -e "$dialogAppPath" ]; then
     cleanup_and_exit 1 "ERROR: SwiftDialog failed to install after numerous attempts. Exiting."
+else
+    report_message "swiftDialog Version: $("$dialogPath" --version)"
 fi
 
 #############################################
