@@ -1615,24 +1615,31 @@ if [ -z $dryRun ]; then
 fi
 
 while [ ! -z "$1" ]; do
-    case $1 in; 
+    case $1 in
         "/")
             log_message "Shifting arguments for Jamf"
             shift 2
             ;;
-        -c|--config|--configuration)
-            shift
-            if [ -e "$1" ] && $pBuddy -c "Print" "${1}" > /dev/null 2>&1; then
-                log_message "Using configuration profile from argument: $1"
-                BaselineConfig="$1"
+        -c|--config|--configuration|--configuration=*)
+            # Set config path name, respecting = sign as provided value
+            if [[ "$1" == *=* ]]; then
+                BaselineConfig="${1##*=}"
+            else
+                BaselineConfig="${2}"
+                shift
+            fi
+
+            if [ -e "$BaselineConfig" ] && $pBuddy -c "Print" "${BaselineConfig}" > /dev/null 2>&1; then
+                log_message "Using configuration profile from argument: $BaselineConfig"
+                #BaselineConfig="$1"
                 function verify_configuration_file(){
                     true
                 }
                 configFromArgument=true
-            elif [ ! -e "$1" ]; then
-                cleanup_and_exit 80 "ERROR: Configuration not found: $1"
+            elif [ ! -e "$BaselineConfig" ]; then
+                cleanup_and_exit 80 "ERROR: Configuration not found: $BaselineConfig"
             else
-                cleanup_and_exit 81 "ERROR: Invalid configuration file: $1"
+                cleanup_and_exit 81 "ERROR: Invalid configuration file: $BaselineConfig"
             fi
             ;;
         -s|--silent|--silent-mode)
