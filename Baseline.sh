@@ -80,6 +80,22 @@ jamfLogFile="/private/var/log/jamf.log"
 
 chmod -R 655 "${BaselineTempDir}"
 
+# As User Stuff
+currentUser=$( echo "show State:/Users/ConsoleUser" | scutil | awk '/Name :/ { print $3 }' )
+uid=$(id -u "$currentUser" 2> /dev/null)
+
+# convenience function to run a command as the current user
+# usage:
+#   runAsUser command arguments...
+runAsUser() {  
+  # shellcheck disable=SC2236
+  if [ "$currentUser" != "loginwindow" ] && [ ! -z "$currentUser" ]; then
+    launchctl asuser "$uid" sudo -u "$currentUser" "$@"
+  else
+    echo "No user logged in"
+  fi
+}
+
 ########################################################################################################
 ########################################################################################################
 ##
@@ -1565,9 +1581,18 @@ function process_wait_for_items(){
         # Sleep 2 seconds between checking for all items
         sleep 2
     done
-
-
 }
+
+function check_inspect_mode(){
+    if $pBuddy -c "Print :InspectModeJSON" "$BaselineConfig" > /dev/null 2>&1; then
+        inspectModeJSON=$($pBuddy -c "Print :InspectModeJSON" "$BaselineConfig")
+        inspectMode=true
+    else
+        inspectMode="false"
+    fi
+
+
+    }
 
 ########################################################################################################
 ########################################################################################################
@@ -1781,6 +1806,9 @@ check_progress_options
 # Check if there is an Icons directory, and if so make a temporary copy of it
 copy_icons_dir
 
+# Check if we're using Inspect Mode
+check_inspect_mode
+
 #####################################
 #   Initiate Dialog Option Arays    #
 #####################################
@@ -1788,10 +1816,12 @@ copy_icons_dir
 finalListCommand=()
 finalSuccessCommand=()
 finalFailureCommand=()
+finalInspectCommand=()
 
 finalListCommand+="$dialogPath"
 finalSuccessCommand+="$dialogPath"
 finalFailureCommand+="$dialogPath"
+finalInspectCommand+="$dialogPath"
 
 
 ######################################
@@ -1814,6 +1844,7 @@ else
     finalListCommand+="--blurscreen"
     finalSuccessCommand+="--blurscreen"
     finalFailureCommand+="--blurscreen"
+    finalInspectCommand+="--blurscreen"
 fi
 
 # Configure Blur Screen options
@@ -1833,6 +1864,16 @@ fi
 # If we found customizations, read them into our final list command array
 if [ -n "$dialogListArguments" ]; then
     eval 'for customization in '$dialogListArguments'; do finalListCommand+=$customization; done'
+fi
+
+# Read the Dialog List `Arguments` customizations, if there are any
+if $pBuddy -c "Print DialogInspectModeOptions" "$BaselineConfig" > /dev/null 2>&1; then
+    dialogInspectArguments=$($pBuddy -c "Print DialogInspectModeOptions" "$BaselineConfig")
+fi
+
+# If we found customizations, read them into our final list command array
+if [ -n "$dialogInspectArguments" ]; then
+    eval 'for customization in '$dialogInspectArguments'; do finalInspectCommand+=$customization; done'
 fi
 
 # This function is not with the rest, but it makes the most sense as I add on this feature.
@@ -2034,20 +2075,41 @@ if [ "$showProgressBar" = "true" ]; then
     finalListCommand+="$progressBarTotal"
 fi
 
-#Create our initial Dialog Window. Do this in an "until" loop, and attempts 10 times before exiting in case it fails to launch for some reason
-dialogAttemptCount=1
-if ! $silentModeEnabled; then
-    until pgrep -q -f "$dialogAppPath.* --commandfile $dialogCommandFile --jsonfile $dialogJsonFile"; do
-        if [ "$dialogAttemptCount" -le 10 ]; then
-            ${finalListCommand[@]} \
-            --commandfile "$dialogCommandFile" \
-            --jsonfile "$dialogJsonFile" \
-            & sleep 1
-            dialogAttemptCount=$(( dialogAttemptCount +1 ))
-        else
-            cleanup_and_exit 1 "**WARNING** SwiftDialog failed to launch after 10 attempts. This likely indicates an issue with the options in the configuration file. Check your file paths."
-        fi
-    done
+# If we're using Inspect Mode, draw the Inspect Mode window and disable our command file updates
+if [[ "$inspectMode" == true ]] && [[ -e "${inspectModeJSON}" ]]; then
+    dialogAttemptCount=1
+    if ! $silentModeEnabled; then
+        # Use an until loop to ensure Dialog launches
+        until pgrep -q -f "$dialogAppPath.* --inspect-mode*"; do 
+            if [ "$dialogAttemptCount" -le 10 ]; then
+                runAsUser ${finalInspectCommand[@]} \
+                --inspect-mode \
+                --inspect-config "$inspectModeJSON" \
+                --commandfile "$dialogCommandFile" \
+                & sleep 1
+                dialogAttemptCount=$(( dialogAttemptCount +1 ))
+            else
+                cleanup_and_exit 1 "**WARNING** SwiftDialog failed to launch after 10 attempts. This likely indicates an issue with the options in the configuration file. Check your file paths."
+            fi
+        done
+    fi
+else
+    #Create our initial Dialog Window. Do this in an "until" loop, and attempts 10 times before exiting in case it fails to launch for some reason
+    dialogAttemptCount=1
+    if ! $silentModeEnabled; then
+        # Use an until loop to ensure Dialog launches
+        until pgrep -q -f "$dialogAppPath.* --commandfile $dialogCommandFile --jsonfile $dialogJsonFile"; do
+            if [ "$dialogAttemptCount" -le 10 ]; then
+                ${finalListCommand[@]} \
+                --commandfile "$dialogCommandFile" \
+                --jsonfile "$dialogJsonFile" \
+                & sleep 1
+                dialogAttemptCount=$(( dialogAttemptCount +1 ))
+            else
+                cleanup_and_exit 1 "**WARNING** SwiftDialog failed to launch after 10 attempts. This likely indicates an issue with the options in the configuration file. Check your file paths."
+            fi
+        done
+    fi
 fi
 
 #########################
