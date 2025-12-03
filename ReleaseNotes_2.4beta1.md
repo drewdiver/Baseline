@@ -14,8 +14,11 @@ The #baseline channel on the [Mac Admins Slack](https://macadmins.org) is the be
 These features require swiftDialog 3.0, which is still in testing, and thus features may change. swiftDialog 3.0 also requires macOS 15+.
 - Adding support for Inspect Mode
     - New configuration option `InspectModeJSON` lets you provide a file path to a JSON file for use with Inspect Mode.
+        - If a value is provided, Baseline will use Inspect Mode instead of the default List View.
     - Documentation for Inspect Mode can be found here: [https://swiftdialog.app/advanced/inspect-mode/](https://swiftdialog.app/advanced/inspect-mode/)
-    - If a JSON 
+    - When using Inspect Mode, `DialogInspectModeOptions` are used to define some window behavior, however, with Dialog Inspect Mode the admin must provide a JSON file with a valid configuration.
+        - Please consult the [swiftDialog documentation](https://swiftdialog.app/advanced/inspect-mode/) for details on how to configure a valid JSON file and choose the desired Preset.
+    
 - Added the ability to use custom Status icons for all Dialog List View item types.
     - By default, Baseline will continue to use the default swiftDialog `wait` `success` `fail` status types for line items.
     - Admins can choose a Global Default Icon for each of these three statuses which all item types will use:
@@ -32,6 +35,7 @@ These features require swiftDialog 3.0, which is still in testing, and thus feat
         - `StatusIconSuccess`
         - `StatusIconFail`
     - Any item without one of these keys will use the default for that status.
+
 ## New Features
 - Added the ability to dynamically hide or show the DialogListView while processing items.
     - Use `HideListView` boolean for any item in `Scripts` `Installomator` or `Packages` to hide the list view while that item runs.
@@ -58,4 +62,3 @@ These features require swiftDialog 3.0, which is still in testing, and thus feat
 ## Known Issues:
 - Spamming the `show:` command is problematic in Dialog 3.0 (makes some weird screen bounce things happen along the edges), need to rework this to only issue the `show:` command if actually needed.
 - Inspect Mode JSON can only be a local file path at this time, will need to support remote files, raw strings, and encoded strings.
-- 
