@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>BlurScreen</key>
+	<false/>
+	<key>CleanupAfterUse</key>
+	<false/>
+	<key>DialogFailureOptions</key>
+	<string>--moveable --ontop</string>
+	<key>DialogSuccessOptions</key>
+	<string>--moveable --ontop</string>
+	<key>FinalScripts</key>
+	<array>
+		<dict>
+			<key>Arguments</key>
+			<string>/var/tmp/completions</string>
+			<key>AsUser</key>
+			<false/>
+			<key>DisplayName</key>
+			<string>Final Complete</string>
+			<key>ScriptPath</key>
+			<string>/usr/bin/touch</string>
+		</dict>
+	</array>
+	<key>InitialScripts</key>
+	<array>
+		<dict>
+			<key>Arguments</key>
+			<string>-r /var/tmp/completions</string>
+			<key>AsUser</key>
+			<false/>
+			<key>DisplayName</key>
+			<string>delete old completions</string>
+			<key>ScriptPath</key>
+			<string>rm</string>
+		</dict>
+		<dict>
+			<key>Arguments</key>
+			<string>/var/tmp/completions/systemsetup</string>
+			<key>AsUser</key>
+			<false/>
+			<key>DisplayName</key>
+			<string>System Setup</string>
+			<key>ScriptPath</key>
+			<string>/usr/bin/touch</string>
+		</dict>
+	</array>
+	<key>InspectModeJSON</key>
+	<string>/var/tmp/test1.json</string>
+	<key>Restart</key>
+	<false/>
+	<key>Scripts</key>
+	<array>
+		<dict>
+			<key>Arguments</key>
+			<string>5</string>
+			<key>AsUser</key>
+			<false/>
+			<key>DisplayName</key>
+			<string>Sleep 5</string>
+			<key>HideListView</key>
+			<false/>
+			<key>ScriptPath</key>
+			<string>/bin/sleep</string>
+		</dict>
+		<dict>
+			<key>AsUser</key>
+			<false/>
+			<key>HideListView</key>
+			<false/>
+		</dict>
+	</array>
+</dict>
+</plist>
