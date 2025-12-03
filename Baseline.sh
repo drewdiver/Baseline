@@ -329,7 +329,7 @@ function dialog_status(){
         return 0
     fi
 
-    dialog_command "listitem: title: ${1}, status: ${2}"        
+    dialog_command "listitem: title: ${1}, status: ${2}"
 
 }
 
