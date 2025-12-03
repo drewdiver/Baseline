@@ -43,6 +43,9 @@ These features require swiftDialog 3.0, which is still in testing, and thus feat
 - Added the ability to skip the final Success or Fail windows entirely.
     - `SkipSuccessDialog` is a new top level `boolean` key that defaults to false.
     - `SkipFailDialog` is a new top level `boolean` key that defaults to false.
+- New key `ShowList` - Boolean defaults to true
+    - If false, the List View dialog will not actually show a list of items. Can be used to create alternate onboarding experiences, like showing a video or image carousel while items are processed.
+    - `DialogListOptions` are still applied to this window
 
 ## Improvements
 - Cleaned up code for sending status updates.
@@ -52,6 +55,10 @@ These features require swiftDialog 3.0, which is still in testing, and thus feat
 - New default icon for all windows.
     - Apple changed the "Keyboard Assistant" icon Baseline used by default, changing the Tuxedo/Butler to a green checkmark.
     - Baseline will now use the swiftDialog built-in of `computer` which shows an icon in the style of the computer it's running on.
+- New command line option: `-k|--keep|--keeptemp`
+    - If this option is used at runtime, Baseline will not delete the temp directory.
+    - This option is intended only for debugging during testing/development, and will not be added to the configuration profile.
+- Temp files inside the temp directory no longer have randomly generated filenames, since the directory path is already randomly generated.
 
 ## Bug Fixes
 - Fixed an issue with Dialog options handling where using `--messagefont` would string match with `--message` causing the default Baseline messaging to be lost.
