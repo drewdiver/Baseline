@@ -69,5 +69,4 @@ These features require swiftDialog 3.0, which is still in testing, and thus feat
     - Thank you @one8three
 
 ## Known Issues:
-- Spamming the `show:` command is problematic in Dialog 3.0 (makes some weird screen bounce things happen along the edges), need to rework this to only issue the `show:` command if actually needed.
 - Inspect Mode JSON can only be a local file path at this time, will need to support remote files, raw strings, and encoded strings.
