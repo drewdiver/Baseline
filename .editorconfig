@@ -1,0 +1,64 @@
+# Baseline .editorconfig
+# Applies consistent formatting across repo contributors
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+
+# Do not remove trailing whitespace — sometimes intentional
+trim_trailing_whitespace = false
+
+#############
+# Shell Scripts
+#############
+# Baseline scripts use hard tabs for indentation.
+[*.sh]
+indent_style = tab
+indent_size = 4
+
+# Same for scripts under scripts/
+[scripts/*.sh]
+indent_style = tab
+indent_size = 4
+
+#############
+# JSON files
+#############
+# Baseline JSON (Inspect Mode examples, presets, schemas)
+# usually uses 4-space indentation.
+[*.json]
+indent_style = space
+indent_size = 4
+
+#############
+# YAML (GitHub workflows, actions, etc.)
+#############
+[*.yml]
+indent_style = space
+indent_size = 2
+
+[*.yaml]
+indent_style = space
+indent_size = 2
+
+#############
+# Property lists (.plist, manifests)
+#############
+[*.plist]
+indent_style = space
+indent_size = 4
+
+#############
+# Markdown / docs
+#############
+[*.md]
+indent_style = space
+indent_size = 2
+
+#############
+# Makefiles require literal tabs
+#############
+[Makefile]
+indent_style = tab
