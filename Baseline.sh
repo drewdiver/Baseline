@@ -60,7 +60,7 @@ BaselineScripts="$BaselineDir/Scripts"
 BaselinePackages="$BaselineDir/Packages"
 BaselineIcons="$BaselineDir/Icons"
 BaselineLaunchDaemon="/Library/LaunchDaemons/com.secondsonconsulting.baseline.plist"
-BaselineTempIconsDir=$(mktemp -d "${BaselineTempDir}/baselineTmpIcons.XXXX")
+BaselineTempIconsDir="${BaselineTempDir}/TempIconsDir" ; mkdir "$BaselineTempIconsDir"
 ScriptOutputLog="/var/log/Baseline-ScriptsOutput.log"
 
 #Binaries
@@ -70,8 +70,8 @@ dialogAppPath="/Library/Application Support/Dialog/Dialog.app"
 installomatorPath="/usr/local/Installomator/Installomator.sh"
 
 #Other stuff
-dialogCommandFile=$(mktemp "${BaselineTempDir}/baselineDialog.XXXXXX")
-dialogJsonFile=$(mktemp "${BaselineTempDir}/baselineJson.XXXX")
+dialogCommandFile="${BaselineTempDir}/commandfile.log" ; touch "$dialogCommandFile"
+dialogJsonFile="${BaselineTempDir}/listview.json" ; touch "$dialogJsonFile"
 expectedDialogTeamID="PWA5E9TQ59"
 defaultWaitForTimeout=600
 
@@ -213,13 +213,19 @@ function cleanup_and_exit(){
     done
 
     kill "$caffeinatepid"
-    dialog_command "quit:" 
-    rm_if_exists "${BaselineTempDir}"
+    dialog_command "quit:"
+
+    # Keep temp files if that option was provided
+    if [[ "$keepTempFiles" == true ]]; then
+        echo "keepTemp option is true - Declining to delete temp dir: $BaselineTempDir"
+    else
+        rm_if_exists "${BaselineTempDir}"
+    fi
+
     if [ "$dryRun" != true ] && [ "$cleanupBaselineDirectory" = "true" ] ; then
         rm_if_exists "$BaselineDir"
     fi
-    # Delete Baseline Temp Dir 
-    rm_if_exists "${BaselineTempDir}"
+
     exit "$1"
 }
 
@@ -257,12 +263,18 @@ function cleanup_and_restart(){
         rm_if_exists "$BaselineDir"
     fi
 
+    # Keep temp files if that option was provided
+    if [[ "$keepTempFiles" == true ]]; then
+        echo "keepTemp option is true - Declining to delete temp dir: $BaselineTempDir"
+    else
+        rm_if_exists "${BaselineTempDir}"
+    fi
+
     # Determine exit configuration
     # If ForceRestart is set to false,  and dry run is off
     if $forceRestart && ! $dryRun ; then
         report_message "Force Restart is configured. Restarting"
         # Delete Baseline Temp Dir 
-        rm_if_exists "${BaselineTempDir}"
         log_message "Forcing restart"
         shutdown -r now
     # If Force Log Out is set to true, and dry run is off
@@ -270,12 +282,10 @@ function cleanup_and_restart(){
         report_message "Force Log Out is set to true."
         osascript -e "tell application \"/System/Library/CoreServices/loginwindow.app\" to «event aevtrlgo»"
         # Delete Baseline Temp Dir 
-        rm_if_exists "${BaselineTempDir}"
         exit "$1"
     elif ! $forceLogOut && ! $forceRestart && ! $dryRun; then
         report_message "Force Log Out and Force Restart are false. Exiting with no action."
         # Delete Baseline Temp Dir 
-        rm_if_exists "${BaselineTempDir}"
         exit "$1"
     # If the script is in DryRun mode
     elif $dryRun; then
@@ -283,14 +293,12 @@ function cleanup_and_restart(){
         report_message "ForceRestart is set to: $forceRestart"
         report_message "ForceLogOut is set to: $forceLogOut"
         # Delete Baseline Temp Dir 
-        rm_if_exists "${BaselineTempDir}"
         exit "$1"
     fi
 
     # Shutting down
     log_message "Unknown ExitAction determined. Falling back on default to ForceRestart"
     # Delete Baseline Temp Dir 
-    rm_if_exists "${BaselineTempDir}"
     shutdown -r now
 }
 
@@ -309,7 +317,18 @@ function dialog_command(){
 
 function dialog_status(){
     # $1 is the item name
-    # $2 is the status to apply 
+    # $2 is the status to apply
+
+    # If we aren't showing the list, no need to update status
+    if [[ "$showList" == false ]]; then
+        return 0
+    fi
+    
+    # If we're in Inspect Mode, no need to update status
+    if [[ "$inspectMode" == true ]]; then
+        return 0
+    fi
+
     dialog_command "listitem: title: ${1}, status: ${2}"        
 
 }
@@ -533,13 +552,13 @@ function process_installomator_labels(){
             # Hide or show is set
             local hideListChoice="$($pBuddy -c "Print :Installomator:${currentIndex}:HideListView" "$BaselineConfig")"
             if [[ "$hideListChoice" == true ]]; then
-                dialog_command "hide:"
+                show_or_hide hide
             else
-                dialog_command "show:"
+                show_or_hide show
             fi
         else
             # Default is to show
-            dialog_command "show:"
+            show_or_hide show
         fi
 
         #Now we have to do a trick in case there are multiple arguments, some of which are quoted together
@@ -801,13 +820,13 @@ function process_scripts(){
                 # Hide or show is set
                 local hideListChoice="$($pBuddy -c "Print :${1}:${currentIndex}:HideListView" "$BaselineConfig")"
                 if [[ "$hideListChoice" == true ]]; then
-                    dialog_command "hide:"
+                    show_or_hide hide
                 else
-                    dialog_command "show:"
+                    show_or_hide show
                 fi
             else
                 # Default is to show
-                dialog_command "show:"
+                show_or_hide show
             fi
         fi
 
@@ -991,13 +1010,13 @@ function process_pkgs(){
             # Hide or show is set
             local hideListChoice="$($pBuddy -c "Print :Packages:${currentIndex}:HideListView" "$BaselineConfig")"
             if [[ "$hideListChoice" == true ]]; then
-                dialog_command "hide:"
+                show_or_hide hide
             else
-                dialog_command "show:"
+                show_or_hide show
             fi
         else
             # Default is to show
-            dialog_command "show:"
+            show_or_hide show
         fi
 
         ## Package validation happens here
@@ -1097,17 +1116,22 @@ function copy_icons_dir(){
 }
 
 function build_dialog_json_file(){
-    # Initiate Json file
-    /bin/echo "{\"listitem\" : [" >> $dialogJsonFile
-    # For each item in our list, add the Json line
-    for jsonItem in $dialogListJson; do
-        /bin/echo "$jsonItem" >> $dialogJsonFile
-    done
-    # This trick removes the final character from the file, to ensure a valid Json
-    cat "$dialogJsonFile" | sed '$ s/.$//' > "${BaselineTempDir}/tempJson1"
-    mv "${BaselineTempDir}/tempJson1" "$dialogJsonFile"
-    # Finish Json file
-    /bin/echo "]}" >> "$dialogJsonFile"
+    # If we're choosing to not list items, overwrite the dialogJsonFile with an empty json string
+    if [[ "$showList" == false ]]; then
+        echo '{}' > "$dialogJsonFile"
+    else
+        # Initiate Json file
+        /bin/echo "{\"listitem\" : [" >> $dialogJsonFile
+        # For each item in our list, add the Json line
+        for jsonItem in $dialogListJson; do
+            /bin/echo "$jsonItem" >> $dialogJsonFile
+        done
+        # This trick removes the final character from the file, to ensure a valid Json
+        cat "$dialogJsonFile" | sed '$ s/.$//' > "${BaselineTempDir}/tempJson1"
+        mv "${BaselineTempDir}/tempJson1" "$dialogJsonFile"
+        # Finish Json file
+        /bin/echo "]}" >> "$dialogJsonFile"
+    fi
 
     # Set global read permissions for Json file
     chmod 644 "$dialogJsonFile"
@@ -1595,8 +1619,49 @@ function check_inspect_mode(){
         inspectMode="false"
     fi
 
-
     }
+
+function check_showlist_option(){
+    if $pBuddy -c "Print :ShowList" "$BaselineConfig" > /dev/null 2>&1; then
+        showList=$($pBuddy -c "Print :ShowList" "$BaselineConfig")
+    else
+        showList="true"
+    fi
+
+}
+
+function show_or_hide(){
+    # $1 is show | hide , no other supported arguments
+    if [[ "$1" != "show" ]] && [[ "$1" != "hide" ]]; then
+        log_message "ERROR TO DEBUG: show_or_hide was given a bad argument: $1"
+        return 1
+    fi
+
+    # If silent mode is enabled, we don't need to do the show/hide dance
+    if $silentModeEnabled; then
+        return 0
+    fi
+
+    # If we are asked to show, but we are already showing, do nothing
+    if [[ "$1" == "show" ]] && [[ "$currentlyShowingList" == true ]]; then
+        return 0
+    fi
+
+    # If we are asked to hide, but we are already hiding, do nothing
+    if [[ "$1" == "hide" ]] && [[ "$currentlyShowingList" == false ]]; then
+        return 0
+    fi
+
+    # Otherwise, if we asked to show then show and if we asked to hide then hide
+    if [[ "$1" == "show" ]]; then
+        dialog_command "show:"
+        currentlyShowingList=true
+    else
+        dialog_command "hide:"
+        currentlyShowingList=false
+    fi
+
+}
 
 ########################################################################################################
 ########################################################################################################
@@ -1677,6 +1742,9 @@ while [ ! -z "$1" ]; do
             ;;
         -t|--tracker)
             useTracker=true
+            ;;
+        -k|--keep|--keeptemp)
+            keepTempFiles=true
             ;;
         *)
             cleanup_and_exit 82 "Unknown argument: $1"
@@ -1812,6 +1880,9 @@ copy_icons_dir
 
 # Check if we're using Inspect Mode
 check_inspect_mode
+
+# Check if we have ShowList set to false
+check_showlist_option
 
 #####################################
 #   Initiate Dialog Option Arays    #
@@ -2113,12 +2184,16 @@ else
                 cleanup_and_exit 1 "**WARNING** SwiftDialog failed to launch after 10 attempts. This likely indicates an issue with the options in the configuration file. Check your file paths."
             fi
         done
+
     fi
 fi
 
-#########################
-#   Install the things  #
-#########################
+# Set our variable indicating we are currently showing the ListView
+currentlyShowingList=true
+
+########################
+#   Do all the things  #
+########################
 
 # Progress Bar will be pulsing until a value is set
 if [ "$showProgressBar" = "true" ]; then
