@@ -58,6 +58,8 @@ These features require swiftDialog 3.0, which is still in testing, and thus feat
     - Huge thanks to @george-elphick-talieisin #103
 - Fixed an issue with `WaitFor` items throwing off the progress bar.
 - BailOut and ExitCondition checks now happen at more appropriate times.
+- Remote hosted Packages that don't end with `.pkg` will now have the file extension applied automatically
+    - Thank you @one8three
 
 ## Known Issues:
 - Spamming the `show:` command is problematic in Dialog 3.0 (makes some weird screen bounce things happen along the edges), need to rework this to only issue the `show:` command if actually needed.

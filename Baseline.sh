@@ -901,7 +901,7 @@ function process_pkgs(){
             pkgBasename=$(basename "$currentPKGPath")
             #Set the "currentPKG" variable, this gets used as the download path as well as processed later
             currentPKG="$BaselinePackages"/"$pkgBasename"
-	    # Append .pkg to $pkgBasename if it does not end with .pkg
+            # Append .pkg to $pkgBasename if it does not end with .pkg
             if [[ "$pkgBasename" != *.pkg ]]; then
                 pkgBasename="${pkgBasename}.pkg"
             fi
