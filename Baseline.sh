@@ -502,25 +502,25 @@ function build_installomator_array(){
 }
 
 function set_current_list_icons(){
-        ## Check for custom status icon for this item
-        # $1 = category of item we are processing
-        # Defaults
-        currentStatusIconWait="${globalStatusIconWait}"
-        currentStatusIconSuccess="${globalStatusIconSuccess}"
-        currentStatusIconFail="${globalStatusIconFail}"
+    ## Check for custom status icon for this item
+    # $1 = category of item we are processing
+    # Defaults
+    currentStatusIconWait="${globalStatusIconWait}"
+    currentStatusIconSuccess="${globalStatusIconSuccess}"
+    currentStatusIconFail="${globalStatusIconFail}"
 
-        # If custom values are in the profile, use them
-        if $pBuddy -c "Print :${1}:${currentIndex}:StatusIconWait" "$BaselineConfig" > /dev/null 2>&1; then
-            currentStatusIconWait=$($pBuddy -c "Print :${1}:${currentIndex}:StatusIconWait" "$BaselineConfig")
-        fi
+    # If custom values are in the profile, use them
+    if $pBuddy -c "Print :${1}:${currentIndex}:StatusIconWait" "$BaselineConfig" > /dev/null 2>&1; then
+        currentStatusIconWait=$($pBuddy -c "Print :${1}:${currentIndex}:StatusIconWait" "$BaselineConfig")
+    fi
 
-        if $pBuddy -c "Print :${1}:${currentIndex}:StatusIconSuccess" "$BaselineConfig" > /dev/null 2>&1; then
-            currentStatusIconSuccess=$($pBuddy -c "Print :${1}:${currentIndex}:StatusIconSuccess" "$BaselineConfig")
-        fi
+    if $pBuddy -c "Print :${1}:${currentIndex}:StatusIconSuccess" "$BaselineConfig" > /dev/null 2>&1; then
+        currentStatusIconSuccess=$($pBuddy -c "Print :${1}:${currentIndex}:StatusIconSuccess" "$BaselineConfig")
+    fi
 
-        if $pBuddy -c "Print :${1}:${currentIndex}:StatusIconFail" "$BaselineConfig" > /dev/null 2>&1; then
-            currentStatusIconFail=$($pBuddy -c "Print :${1}:${currentIndex}:StatusIconFail" "$BaselineConfig")
-        fi
+    if $pBuddy -c "Print :${1}:${currentIndex}:StatusIconFail" "$BaselineConfig" > /dev/null 2>&1; then
+        currentStatusIconFail=$($pBuddy -c "Print :${1}:${currentIndex}:StatusIconFail" "$BaselineConfig")
+    fi
 }
 
 function set_current_retries() {
@@ -546,6 +546,24 @@ function set_current_retries() {
                 currentRetries="0"
                 ;;
         esac
+    fi
+
+}
+
+function set_current_curl_options(){
+    ## Check for curl options for this item
+    # $1 = category of item we are processing
+    # Defaults
+    curlOptions=()
+    curlConfigOptions=()
+    # If custom values are in the profile, use them
+    if $pBuddy -c "Print :${1}:${currentIndex}:CurlOptions" "$BaselineConfig" > /dev/null 2>&1; then
+        curlConfigOptions=$($pBuddy -c "Print :${1}:${currentIndex}:CurlOptions" "$BaselineConfig")
+    fi
+
+    # Read these into an array we can pass at runtime, using eval to split and read input
+    if [ -n "$curlConfigOptions" ]; then
+        eval 'for option in '$curlConfigOptions'; do curlOptions+=$option; done'
     fi
 
 }
@@ -759,14 +777,19 @@ function process_scripts(){
         if [[ ${currentScriptPath:0:4} == "http" ]]; then
             #Set variable to the base file name to be downloaded
             currentScript="$BaselineScripts/"$(basename "$currentScriptPath")
+
+            # Set custom curl options for this item:
+            set_current_curl_options "${1}"
+
             #Download the remote script, and put it in the Baseline Scripts directory
-            curl -s --fail-with-body "${currentScriptPath}" -o "$currentScript"
+            curl ${curlOptions[@]} -s --fail-with-body "${currentScriptPath}" -o "$currentScript"
             #Capture the exit code of our curl command
             scriptDownloadExitCode=$?
             #Check if curl exited cleanly
             if [ "$scriptDownloadExitCode" != 0 ];then
                 #Report a failed download
-                report_message "Failed Item - Script download error: $currentScriptPath"
+                report_message "Failed Item: $currentDisplayName - Script download error: $currentScriptPath"
+                failList+=("$currentDisplayName")
                 #Rm the output of our curl command. This will result in it being processed as a failure
                 rm_if_exists "$currentScript"
             else
@@ -1000,18 +1023,23 @@ function process_pkgs(){
             fi
             #Check for conflict. If there's already a PKG in the directory we're downloading to, delete it
             rm_if_exists "$currentPKG"
+
+            # Set custom curl options for this item:
+            set_current_curl_options Packages
+
             #Perform the download of the remote pkg
-            curl -LJs "$currentPKGPath" -o "$currentPKG"
+            curl ${curlOptions[@]} -LJs "$currentPKGPath" -o "$currentPKG"
             #Capture the output of our curl command
             downloadResult=$?
             #Verify curl exited with 0
             if [ "$downloadResult" != 0 ]; then
-                report_message "Failed Item - Package download error: $currentPKGPath"
+                report_message "Failed Item $currentDisplayName - Package download error: $currentPKGPath"
                 # Iterate the index up one
                 currentIndex=$((currentIndex+1))
                 increment_progress_bar
                 # Report the fail
                 dialog_status "$currentDisplayName" "${currentStatusIconFail}"
+                failList+=("$currentDisplayName")
                 # Bail this pass through the while loop and continue processing next item
                 continue
             else
