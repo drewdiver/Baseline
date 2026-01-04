@@ -37,6 +37,16 @@ These features require swiftDialog 3.0, which is still in testing, and thus feat
     - Any item without one of these keys will use the default for that status.
 
 ## New Features
+- Added support to retry failed items
+    - Default retry value for all types is 0
+    - You can set defaults for the three major types using:
+        - DefaultScriptRetries
+        - DefaultInstallomatorRetries
+        - DefaultPackageRetries
+    - You can override the deafult retries value for any individual item using: `Retries` on that item's definition
+    - Note that Baseline retries do not attempt to redownload remote packages or scripts and do not retry SHA256/MD5 checksum checks. 
+        - For download retries, see the new `curlOptions` feature
+    - Baseline will wait `SleepBetweenRetries` seconds between retries. Default is 5.
 - Added the ability to dynamically hide or show the DialogListView while processing items.
     - Use `HideListView` boolean for any item in `Scripts` `Installomator` or `Packages` to hide the list view while that item runs.
     - Note: Some versions of SwiftDialog appear to have bugs related to this feature along with `--blurscreen`.
@@ -45,7 +55,7 @@ These features require swiftDialog 3.0, which is still in testing, and thus feat
     - `SkipFailDialog` is a new top level `boolean` key that defaults to false.
 - New key `ShowList` - Boolean defaults to true
     - If false, the List View dialog will not actually show a list of items. Can be used to create alternate onboarding experiences, like showing a video or image carousel while items are processed.
-    - `DialogListOptions` are still applied to this window
+
 
 ## Improvements
 - Cleaned up code for sending status updates.
@@ -70,3 +80,7 @@ These features require swiftDialog 3.0, which is still in testing, and thus feat
 
 ## Known Issues:
 - Inspect Mode JSON can only be a local file path at this time, will need to support remote files, raw strings, and encoded strings.
+- The following items are not yet in the Profile Manifest:
+    - DefaultScriptRetries
+    - DefaultInstallomatorRetries
+    - DefaultPackageRetries

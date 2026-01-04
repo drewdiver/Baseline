@@ -523,6 +523,33 @@ function set_current_list_icons(){
         fi
 }
 
+function set_current_retries() {
+    ## Check for custom retries for this item
+    # $1 = category of item we are processing
+
+    # If custom values are in the profile, use them
+    if $pBuddy -c "Print :${1}:${currentIndex}:Retries" "$BaselineConfig" > /dev/null 2>&1; then
+        currentRetries=$($pBuddy -c "Print :${1}:${currentIndex}:Retries" "$BaselineConfig")
+    else
+        case "$1" in
+            Packages)
+                currentRetries="$defaultPackageRetries"
+                ;;
+            Installomator)
+                currentRetries="$defaultInstallomatorRetries"
+                ;;
+            *Scripts)
+                currentRetries="$defaultScriptRetries"
+                ;;
+            *)
+                # Default to global retries
+                currentRetries="0"
+                ;;
+        esac
+    fi
+
+}
+
 function process_installomator_labels(){
     #Set an index internal to this function
     currentIndex=0
@@ -584,11 +611,35 @@ function process_installomator_labels(){
         fi
         
         set_progressbar_text "$currentDisplayName"
-        #Call installomator with our desired options. Default options first, so that they can be overriden by "currentArguments"
-        $installomatorPath $currentLabel ${defaultInstallomatorOptions[@]} ${currentArgumentArray[@]} > /dev/null 2>&1
-        installomatorExitCode=$?
-        if [ $installomatorExitCode != 0 ]; then
-            report_message "Failed Item - Installomator: $currentLabel - Exit Code: $installomatorExitCode"
+
+        ## Check for custom retries count for this item
+        set_current_retries Installomator
+
+        # Set variables for retries
+        currentAttemptCount=0
+        currentItemComplete=false
+        # While our attempted retries are less than or equal to our max retry count (and if this item hasn't completed successfully already)
+        while [[ "$currentAttemptCount" -le "$currentRetries" ]] && [[ "$currentItemComplete" != "true" ]]; do
+            # If this isn't our first try, sleep for the appropriate amount of seconds before retrying
+            if [[ "$currentAttemptCount" -gt 0 ]]; then
+                sleep "$sleepBetweenRetries"
+            fi                
+            # Increase our retry attempted count
+            currentAttemptCount="$(( currentAttemptCount + 1 ))"
+
+            #Call installomator with our desired options. Default options first, so that they can be overriden by "currentArguments"
+            $installomatorPath $currentLabel ${defaultInstallomatorOptions[@]} ${currentArgumentArray[@]} > /dev/null 2>&1
+            installomatorExitCode=$?
+            # If we were successful, set item complete to true so retries stop looping
+            if [[ $installomatorExitCode == 0 ]]; then
+                currentItemComplete="true"
+            else
+                report_message "Unsuccessful attempt - Installomator runtime error: $currentLabel on attempt $currentAttemptCount with retry count $currentRetries - Exit Code: $installomatorExitCode"
+            fi
+        done
+
+        if [[ "$currentItemComplete" != "true" ]]; then
+            report_message "Failed Item - Installomator: $currentLabel after $currentAttemptCount attempts - Exit Code: $installomatorExitCode"
             failList+=("$currentDisplayName")
             # If we're NOT using the integrated SwiftDialog, then
             if  [[ $useInstallomatorSwiftDialogIntegration != "true" ]]; then
@@ -830,23 +881,46 @@ function process_scripts(){
             fi
         fi
 
-        #Call our script with our desired options. Default options first, so that they can be overriden by "currentArguments"
-        if [[ $asUser == "true" ]]; then
-            if [[ -z "$currentUser" ]]; then
-                # If we don't have a user, we don't want to run this script
-                log_message "Script set to run asUser but no user logged in: $currentScript"
-                /usr/bin/false
+        ## Check for custom retries count for this item
+        set_current_retries "${1}"
+
+        # Set variables for retries
+        currentAttemptCount=0
+        currentItemComplete=false
+        # While our attempted retries are less than or equal to our max retry count (and if this item hasn't completed successfully already)
+        while [[ "$currentAttemptCount" -le "$currentRetries" ]] && [[ "$currentItemComplete" != "true" ]]; do
+            # If this isn't our first try, sleep for the appropriate amount of seconds before retrying
+            if [[ "$currentAttemptCount" -gt 0 ]]; then
+                sleep "$sleepBetweenRetries"
+            fi                
+            # Increase our retry attempted count
+            currentAttemptCount="$(( currentAttemptCount + 1 ))"
+
+            #Call our script with our desired options. Default options first, so that they can be overriden by "currentArguments"
+            if [[ $asUser == "true" ]]; then
+                if [[ -z "$currentUser" ]]; then
+                    # If we don't have a user, we don't want to run this script
+                    log_message "Script set to run asUser but no user logged in: $currentScript"
+                    /usr/bin/false
+                else
+                    log_message "Running Script: as current user - $currentUser: $currentScript ${currentArgumentArray[@]}"
+                    /bin/launchctl asuser "$currentUserUID" sudo -u "$currentUser" "$currentScript" ${currentArgumentArray[@]} >> "$ScriptOutputLog" 2>&1
+                fi
             else
-                log_message "Running Script: as current user - $currentUser: $currentScript ${currentArgumentArray[@]}"
-                /bin/launchctl asuser "$currentUserUID" sudo -u "$currentUser" "$currentScript" ${currentArgumentArray[@]} >> "$ScriptOutputLog" 2>&1
+                log_message "Running Script: as root: $currentScript ${currentArgumentArray[@]}"
+                "$currentScript" ${currentArgumentArray[@]} >> "$ScriptOutputLog" 2>&1
             fi
-        else
-            log_message "Running Script: as root: $currentScript ${currentArgumentArray[@]}"
-            "$currentScript" ${currentArgumentArray[@]} >> "$ScriptOutputLog" 2>&1
-        fi
-        scriptExitCode=$?
-        if [ $scriptExitCode != 0 ]; then
-            report_message "Failed Item - Script runtime error: $currentScript - Exit Code: $scriptExitCode"
+            scriptExitCode=$?
+            
+            # If we were successful, set item complete to true so retries stop looping
+            if [[ $scriptExitCode == 0 ]]; then
+                currentItemComplete="true"
+            else
+                report_message "Unsuccessful attempt - Script runtime error: $currentScript on attempt $currentAttemptCount with retry count $currentRetries - Exit Code: $scriptExitCode"
+            fi
+        done
+        if [[ "$currentItemComplete" != "true" ]]; then
+            report_message "Failed Item - Script runtime error: $currentScript after $currentAttemptCount attempts - Exit Code: $scriptExitCode"
             dialog_status "$currentDisplayName" "${currentStatusIconFail}"
             failList+=("$currentDisplayName")
         else
@@ -1083,13 +1157,36 @@ function process_pkgs(){
             fi
         fi
 
-        ## The package installation happens here. We do this in a variable so we can capture the output and report it for debugging
-	    pkgInstallerOutput=$(installer -allowUntrusted -pkg "$currentPKG" -target / ${currentArgumentArray[@]} )
-        # Capture the installer exit code
-        pkgExitCode=$?
+        ## Check for custom retries count for this item
+        set_current_retries Packages
+
+        # Set variables for retries
+        currentAttemptCount=0
+        currentItemComplete=false
+        # While our attempted retries are less than or equal to our max retry count (and if this item hasn't completed successfully already)
+        while [[ "$currentAttemptCount" -le "$currentRetries" ]] && [[ "$currentItemComplete" != "true" ]]; do
+            # If this isn't our first try, sleep for the appropriate amount of seconds before retrying
+            if [[ "$currentAttemptCount" -gt 0 ]]; then
+                sleep "$sleepBetweenRetries"
+            fi                
+            # Increase our retry attempted count
+            currentAttemptCount="$(( currentAttemptCount + 1 ))"
+
+            ## The package installation happens here. We do this in a variable so we can capture the output and report it for debugging
+            pkgInstallerOutput=$(installer -allowUntrusted -pkg "$currentPKG" -target / ${currentArgumentArray[@]} )
+            # Capture the installer exit code
+            pkgExitCode=$?
+
+            # If we were successful, set item complete to true so retries stop looping
+            if [[ $pkgExitCode == 0 ]]; then
+                currentItemComplete="true"
+            else
+                report_message "Unsuccessful attempt - Package installation error: $currentPKG on attempt $currentAttemptCount with retry count $currentRetries - Exit Code: $pkgExitCode"
+            fi
+        done
         # Verify the install completed successfully
-        if [ $pkgExitCode != 0 ]; then
-            report_message "Failed Item - Package installation error: $currentPKG - Exit Code: $pkgExitCode"
+        if [[ "$currentItemComplete" != "true" ]]; then
+            report_message "Failed Item - Package installation error: $currentPKG on attempt $currentAttemptCount - Exit Code: $pkgExitCode"
             dialog_status "$currentDisplayName" "${currentStatusIconFail}"
             failList+=("$currentDisplayName")
         else
@@ -1630,6 +1727,37 @@ function check_showlist_option(){
 
 }
 
+function set_default_retry_values(){
+
+    defaultScriptRetries=0
+    defaultInstallomatorRetries=0
+    defaultPackageRetries=0
+    defaultSleepBetweenRetries=5
+
+    # Get the Global Retries value from config, if it exists, otherwise set to Baseline default
+    if $pBuddy -c "Print :DefaultScriptRetries" "$BaselineConfig" > /dev/null 2>&1; then
+        defaultScriptRetries=$($pBuddy -c "Print :DefaultScriptRetries" "$BaselineConfig")
+    fi
+
+    # Get the Global Retries value from config, if it exists, otherwise set to Baseline default
+    if $pBuddy -c "Print :DefaultInstallomatorRetries" "$BaselineConfig" > /dev/null 2>&1; then
+        defaultInstallomatorRetries=$($pBuddy -c "Print :DefaultInstallomatorRetries" "$BaselineConfig")
+    fi
+
+    # Get the Global Retries value from config, if it exists, otherwise set to Baseline default
+    if $pBuddy -c "Print :DefaultPackageRetries" "$BaselineConfig" > /dev/null 2>&1; then
+        defaultPackageRetries=$($pBuddy -c "Print :DefaultPackageRetries" "$BaselineConfig")
+    fi
+
+    # Get the Global Sleep Between Retries value from config, if it exists, otherwise set to Baseline default
+    if $pBuddy -c "Print :SleepBetweenRetries" "$BaselineConfig" > /dev/null 2>&1; then
+        sleepBetweenRetries=$($pBuddy -c "Print :SleepBetweenRetries" "$BaselineConfig")
+    else
+        sleepBetweenRetries="$defaultSleepBetweenRetries"
+    fi
+
+}
+
 function show_or_hide(){
     # $1 is show | hide , no other supported arguments
     if [[ "$1" != "show" ]] && [[ "$1" != "hide" ]]; then
@@ -1855,6 +1983,9 @@ progressBarDisplayNames="false"
 
 # Check Bail Out configuration
 check_bail_out_configuration
+
+# Get defaultretry options
+set_default_retry_values
 
 process_scripts InitialScripts
 
@@ -2202,6 +2333,9 @@ fi
 
 # Check Bail Out configuration
 check_bail_out_configuration
+
+# Get defaultretry options
+set_default_retry_values
 
 ## Setup WaitFor loop
 # Check for a custom "WaitForTimeout" value
