@@ -149,6 +149,8 @@ A profile can consist of payloads with different version numbers. For example, c
 					<string>BailOutFile</string>
 					<string>IgnoreDefaultInstallomatorOptions</string>
 					<string>CloseListBeforeFinalScripts</string>
+					<string>SkipSuccessDialog</string>
+					<string>SkipFailDialog</string>
 					<string>DefaultInstallomatorRetries</string>
 					<string>DefaultPackageRetries</string>
 					<string>DefaultScriptRetries</string>
@@ -170,8 +172,6 @@ A profile can consist of payloads with different version numbers. For example, c
 					<string>GlobalDialogStatusIconSuccess</string>
 					<string>GlobalDialogStatusIconFail</string>
 					<string>PendingWaitForIcon</string>
-					<string>SkipSuccessDialog</string>
-					<string>SkipFailDialog</string>
 					<string>Button1Enabled</string>
 					<string>ReinstallDialog</string>
 				</array>
@@ -815,16 +815,6 @@ A profile can consist of payloads with different version numbers. For example, c
 			<string>array</string>
 		</dict>
 		<dict>
-			<key>pfm_description</key>
-			<string>Path to your Inspect Mode JSON file. Using this option enables "Inspect Mode". DialogListView options will not be respected, and no Baseline DialogListView will be drawn. Inspect Mode is enabled after InitialScripts</string>
-			<key>pfm_name</key>
-			<string>InspectModeJSON</string>
-			<key>pfm_title</key>
-			<string>Inspect Mode JSON</string>
-			<key>pfm_type</key>
-			<string>string</string>
-		</dict>
-		<dict>
 			<key>pfm_app_min</key>
 			<string>2.2</string>
 			<key>pfm_description</key>
@@ -859,6 +849,136 @@ A profile can consist of payloads with different version numbers. For example, c
 			<string>Force Log Out</string>
 			<key>pfm_type</key>
 			<string>boolean</string>
+		</dict>
+		<dict>
+			<key>pfm_default</key>
+			<true/>
+			<key>pfm_description</key>
+			<string>This setting controls whether Baseline deletes it's install directory after use: /usr/local/Baseline.</string>
+			<key>pfm_name</key>
+			<string>CleanupAfterUse</string>
+			<key>pfm_title</key>
+			<string>Cleanup After Use</string>
+			<key>pfm_type</key>
+			<string>boolean</string>
+		</dict>
+		<dict>
+			<key>pfm_default</key>
+			<false/>
+			<key>pfm_description</key>
+			<string>By default, Baseline uses "NOTIFY=silent" and "BLOCKING_PROCESS_ACTION=kill" Installomator options. Setting this to True means Baseline will not use those options.</string>
+			<key>pfm_name</key>
+			<string>IgnoreDefaultInstallomatorOptions</string>
+			<key>pfm_title</key>
+			<string>Ignore Default Installomator Options</string>
+			<key>pfm_type</key>
+			<string>boolean</string>
+		</dict>
+		<dict>
+			<key>pfm_app_min</key>
+			<string>2.4</string>
+			<key>pfm_default</key>
+			<false/>
+			<key>pfm_description</key>
+			<string>If set to true, Baseline will not present a Success dialog at completion.</string>
+			<key>pfm_name</key>
+			<string>SkipSuccessDialog</string>
+			<key>pfm_title</key>
+			<string>Skip Success Dialog</string>
+			<key>pfm_type</key>
+			<string>boolean</string>
+		</dict>
+		<dict>
+			<key>pfm_app_min</key>
+			<string>2.4</string>
+			<key>pfm_default</key>
+			<false/>
+			<key>pfm_description</key>
+			<string>If set to true, Baseline will not present a Failure dialog at completion.</string>
+			<key>pfm_name</key>
+			<string>SkipFailDialog</string>
+			<key>pfm_title</key>
+			<string>Skip Failure Dialog</string>
+			<key>pfm_type</key>
+			<string>boolean</string>
+		</dict>
+		<dict>
+			<key>pfm_app_min</key>
+			<string>2.2</string>
+			<key>pfm_default</key>
+			<false/>
+			<key>pfm_description</key>
+			<string>If set to true, no dialog windows will be created. All items and item types will process as normal.</string>
+			<key>pfm_name</key>
+			<string>SilentMode</string>
+			<key>pfm_title</key>
+			<string>Silent Mode</string>
+			<key>pfm_type</key>
+			<string>boolean</string>
+		</dict>
+		<dict>
+			<key>pfm_app_min</key>
+			<string>2.3</string>
+			<key>pfm_default</key>
+			<false/>
+			<key>pfm_description</key>
+			<string>If set to true, Baseline will close the list view window before running FinalScripts. Use this option if you want to utilize FinalScripts to have the user complete actions prior to the Baseline completion dialog.</string>
+			<key>pfm_name</key>
+			<string>CloseListBeforeFinalScripts</string>
+			<key>pfm_title</key>
+			<string>Close List View Before Final Scripts</string>
+			<key>pfm_type</key>
+			<string>boolean</string>
+		</dict>
+		<dict>
+			<key>pfm_description</key>
+			<string>SwiftDialog options for the primary Baseline progress list window.</string>
+			<key>pfm_name</key>
+			<string>DialogListOptions</string>
+			<key>pfm_title</key>
+			<string>Dialog List Window Options</string>
+			<key>pfm_type</key>
+			<string>string</string>
+		</dict>
+		<dict>
+			<key>pfm_description</key>
+			<string>SwiftDialog options for the Success Dialog window.</string>
+			<key>pfm_name</key>
+			<string>DialogSuccessOptions</string>
+			<key>pfm_title</key>
+			<string>Dialog Success Window Options</string>
+			<key>pfm_type</key>
+			<string>string</string>
+		</dict>
+		<dict>
+			<key>pfm_description</key>
+			<string>SwiftDialog options for the Failure Dialog window.</string>
+			<key>pfm_name</key>
+			<string>DialogFailureOptions</string>
+			<key>pfm_title</key>
+			<string>Dialog Failure Window Options</string>
+			<key>pfm_type</key>
+			<string>string</string>
+		</dict>
+		<dict>
+			<key>pfm_description</key>
+			<string>SwiftDialog options for Inspect Mode. Most options should be in the JSON file, but some can be passed here. See swiftDialog documentation for specifics.</string>
+			<key>pfm_name</key>
+			<string>DialogInspectModeOptions</string>
+			<key>pfm_title</key>
+			<string>Dialog Inspect Mode Window Options</string>
+			<key>pfm_type</key>
+			<string>string</string>
+		</dict>
+		<dict>
+			<key>pfm_description</key>
+			<string>Path to your Inspect Mode JSON file. Using this option enables "Inspect Mode". DialogListView options will not be respected, and no Baseline DialogListView will be drawn. Inspect Mode is enabled after InitialScripts</string>
+			<key>pfm_name</key>
+			<string>InspectModeJSON</string>
+			<key>pfm_title</key>
+			<string>Inspect Mode JSON</string>
+			<key>pfm_type</key>
+			<string>string</string>
 		</dict>
 		<dict>
 			<key>pfm_default</key>
@@ -910,28 +1030,6 @@ A profile can consist of payloads with different version numbers. For example, c
 		</dict>
 		<dict>
 			<key>pfm_default</key>
-			<true/>
-			<key>pfm_description</key>
-			<string>This setting controls whether Baseline deletes it's install directory after use: /usr/local/Baseline.</string>
-			<key>pfm_name</key>
-			<string>CleanupAfterUse</string>
-			<key>pfm_title</key>
-			<string>Cleanup After Use</string>
-			<key>pfm_type</key>
-			<string>boolean</string>
-		</dict>
-		<dict>
-			<key>pfm_description</key>
-			<string>Deprecated: This feature was removed in v.2.3, as it is no longer needed. This setting controls whether Baseline will reinstall SwiftDialog as the final step before completion. Default behavior if this key is omitted will reinstall SwiftDialog if a custom PNG is found in /Library/Application Support/Dialog/Dialog.png. Leave this as default if you use Baseline to deploy a custom SwiftDialog icon. Set to false if you do not want Baseline to ever reinstall SwiftDialog. Set to True if you always want to reinstall SwiftDialog after each Baseline.</string>
-			<key>pfm_name</key>
-			<string>ReinstallDialog</string>
-			<key>pfm_title</key>
-			<string>Reinstall SwiftDialog</string>
-			<key>pfm_type</key>
-			<string>boolean</string>
-		</dict>
-		<dict>
-			<key>pfm_default</key>
 			<false/>
 			<key>pfm_description</key>
 			<string>Tell Installomator to use it's built in SwiftDialog integration for the List View.</string>
@@ -939,44 +1037,6 @@ A profile can consist of payloads with different version numbers. For example, c
 			<string>InstallomatorSwiftDialogIntegration</string>
 			<key>pfm_title</key>
 			<string>Use Installomator SwiftDialog Integration</string>
-			<key>pfm_type</key>
-			<string>boolean</string>
-		</dict>
-		<dict>
-			<key>pfm_default</key>
-			<false/>
-			<key>pfm_description</key>
-			<string>By default, Baseline uses "NOTIFY=silent" and "BLOCKING_PROCESS_ACTION=kill" Installomator options. Setting this to True means Baseline will not use those options.</string>
-			<key>pfm_name</key>
-			<string>IgnoreDefaultInstallomatorOptions</string>
-			<key>pfm_title</key>
-			<string>Ignore Default Installomator Options</string>
-			<key>pfm_type</key>
-			<string>boolean</string>
-		</dict>
-		<dict>
-			<key>pfm_default</key>
-			<false/>
-			<key>pfm_description</key>
-			<string>This setting enables SwiftDialog "Button 1" (the OK button) on the Baseline List View. This allows users to dismiss the list view and continue working while Baseline runs. By default this button is disabled.</string>
-			<key>pfm_name</key>
-			<string>Button1Enabled</string>
-			<key>pfm_title</key>
-			<string>Button 1 Enabled</string>
-			<key>pfm_type</key>
-			<string>boolean</string>
-		</dict>
-		<dict>
-			<key>pfm_app_min</key>
-			<string>2.2</string>
-			<key>pfm_default</key>
-			<false/>
-			<key>pfm_description</key>
-			<string>If set to true, no dialog windows will be created. All items and item types will process as normal.</string>
-			<key>pfm_name</key>
-			<string>SilentMode</string>
-			<key>pfm_title</key>
-			<string>Silent Mode</string>
 			<key>pfm_type</key>
 			<string>boolean</string>
 		</dict>
@@ -995,86 +1055,16 @@ A profile can consist of payloads with different version numbers. For example, c
 			<string>boolean</string>
 		</dict>
 		<dict>
-			<key>pfm_app_min</key>
-			<string>2.3</string>
 			<key>pfm_default</key>
 			<false/>
 			<key>pfm_description</key>
-			<string>If set to true, Baseline will close the list view window before running FinalScripts. Use this option if you want to utilize FinalScripts to have the user complete actions prior to the Baseline completion dialog.</string>
+			<string>This setting enables SwiftDialog "Button 1" (the OK button) on the Baseline List View. This allows users to dismiss the list view and continue working while Baseline runs. By default this button is disabled.</string>
 			<key>pfm_name</key>
-			<string>CloseListBeforeFinalScripts</string>
+			<string>Button1Enabled</string>
 			<key>pfm_title</key>
-			<string>Close List View Before Final Scripts</string>
+			<string>Button 1 Enabled</string>
 			<key>pfm_type</key>
 			<string>boolean</string>
-		</dict>
-		<dict>
-			<key>pfm_app_min</key>
-			<string>2.4</string>
-			<key>pfm_default</key>
-			<false/>
-			<key>pfm_description</key>
-			<string>If set to true, Baseline will not present a Success dialog at completion.</string>
-			<key>pfm_name</key>
-			<string>SkipSuccessDialog</string>
-			<key>pfm_title</key>
-			<string>Skip Success Dialog</string>
-			<key>pfm_type</key>
-			<string>boolean</string>
-		</dict>
-		<dict>
-			<key>pfm_app_min</key>
-			<string>2.4</string>
-			<key>pfm_default</key>
-			<false/>
-			<key>pfm_description</key>
-			<string>If set to true, Baseline will not present a Failure dialog at completion.</string>
-			<key>pfm_name</key>
-			<string>SkipFailDialog</string>
-			<key>pfm_title</key>
-			<string>Skip Failure Dialog</string>
-			<key>pfm_type</key>
-			<string>boolean</string>
-		</dict>
-		<dict>
-			<key>pfm_description</key>
-			<string>SwiftDialog options for the primary Baseline progress list window.</string>
-			<key>pfm_name</key>
-			<string>DialogListOptions</string>
-			<key>pfm_title</key>
-			<string>Dialog List Window Options</string>
-			<key>pfm_type</key>
-			<string>string</string>
-		</dict>
-		<dict>
-			<key>pfm_description</key>
-			<string>SwiftDialog options for the Success Dialog window.</string>
-			<key>pfm_name</key>
-			<string>DialogSuccessOptions</string>
-			<key>pfm_title</key>
-			<string>Dialog Success Window Options</string>
-			<key>pfm_type</key>
-			<string>string</string>
-		</dict>
-		<dict>
-			<key>pfm_description</key>
-			<string>SwiftDialog options for the Failure Dialog window.</string>
-			<key>pfm_name</key>
-			<string>DialogFailureOptions</string>
-			<key>pfm_title</key>
-			<string>Dialog Failure Window Options</string>
-			<key>pfm_type</key>
-			<string>string</string>
-		</dict>
-		<dict>
-			<key>pfm_description</key>
-			<string>SwiftDialog options for Inspect Mode. Most options should be in the JSON file, but some can be passed here. See swiftDialog documentation for specifics.</string>
-			<key>pfm_name</key>
-			<string>DialogInspectModeOptions</string>
-			<key>pfm_title</key>
-			<string>Dialog Inspect Mode Window Options</string>
-			<key>pfm_type</key>
-			<string>string</string>
 		</dict>
 		<dict>
 			<key>pfm_description</key>
@@ -1115,6 +1105,16 @@ A profile can consist of payloads with different version numbers. For example, c
 			<string>Wait For Pending Icon</string>
 			<key>pfm_type</key>
 			<string>string</string>
+		</dict>
+		<dict>
+			<key>pfm_description</key>
+			<string>Deprecated: This feature was removed in v.2.3, as it is no longer needed. This setting controls whether Baseline will reinstall SwiftDialog as the final step before completion. Default behavior if this key is omitted will reinstall SwiftDialog if a custom PNG is found in /Library/Application Support/Dialog/Dialog.png. Leave this as default if you use Baseline to deploy a custom SwiftDialog icon. Set to false if you do not want Baseline to ever reinstall SwiftDialog. Set to True if you always want to reinstall SwiftDialog after each Baseline.</string>
+			<key>pfm_name</key>
+			<string>ReinstallDialog</string>
+			<key>pfm_title</key>
+			<string>Reinstall SwiftDialog</string>
+			<key>pfm_type</key>
+			<string>boolean</string>
 		</dict>
 		<dict>
 			<key>pfm_description</key>
