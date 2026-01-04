@@ -1729,9 +1729,9 @@ function check_showlist_option(){
 
 function set_default_retry_values(){
 
-    defaultScriptRetries=1
-    defaultInstallomatorRetries=2
-    defaultPackageRetries=3
+    defaultScriptRetries=0
+    defaultInstallomatorRetries=0
+    defaultPackageRetries=0
     defaultSleepBetweenRetries=5
 
     # Get the Global Retries value from config, if it exists, otherwise set to Baseline default
