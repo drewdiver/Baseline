@@ -47,6 +47,8 @@ These features require swiftDialog 3.0, which is still in testing, and thus feat
     - Note that Baseline retries do not attempt to redownload remote packages or scripts and do not retry SHA256/MD5 checksum checks. 
         - For download retries, see the new `curlOptions` feature
     - Baseline will wait `SleepBetweenRetries` seconds between retries. Default is 5.
+- Added support for custom `CurlOptions` for any Package or Script downloads
+    - You can set additional header options, retries, etc. which will be passed to `curl` on any Script or Package item.
 - Profile Manifest was revamped for organization, moving options into tabs for easier navigation in iMazing Profile Editor.
     - Huge thanks to @relgit for the assist.
 - Added the ability to dynamically hide or show the DialogListView while processing items.
@@ -79,6 +81,7 @@ These features require swiftDialog 3.0, which is still in testing, and thus feat
 - BailOut and ExitCondition checks now happen at more appropriate times.
 - Remote hosted Packages that don't end with `.pkg` will now have the file extension applied automatically
     - Thank you @one8three
+- Fixed a bug where Packages and Scripts that failed during the download process were not added to the "Failed" GUI list.
 
 ## Known Issues:
 - Inspect Mode JSON can only be a local file path at this time, will need to support remote files, raw strings, and encoded strings.
