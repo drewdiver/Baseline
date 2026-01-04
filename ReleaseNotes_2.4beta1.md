@@ -73,6 +73,7 @@ These features require swiftDialog 3.0, which is still in testing, and thus feat
     - If this option is used at runtime, Baseline will not delete the temp directory.
     - This option is intended only for debugging during testing/development, and will not be added to the configuration profile.
 - Temp files inside the temp directory no longer have randomly generated filenames, since the directory path is already randomly generated.
+- The "EmptyPKG.pkg" is no longer included inside the default Baseline package, as it caused problems with some management systems getting confused by the multiple receipts. It can now be found under the "TestingResources" folder.
 
 ## Bug Fixes
 - Fixed an issue with Dialog options handling where using `--messagefont` would string match with `--message` causing the default Baseline messaging to be lost.
