@@ -47,6 +47,8 @@ These features require swiftDialog 3.0, which is still in testing, and thus feat
     - Note that Baseline retries do not attempt to redownload remote packages or scripts and do not retry SHA256/MD5 checksum checks. 
         - For download retries, see the new `curlOptions` feature
     - Baseline will wait `SleepBetweenRetries` seconds between retries. Default is 5.
+- Profile Manifest was revamped for organization, moving options into tabs for easier navigation in iMazing Profile Editor.
+    - Huge thanks to @relgit for the assist.
 - Added the ability to dynamically hide or show the DialogListView while processing items.
     - Use `HideListView` boolean for any item in `Scripts` `Installomator` or `Packages` to hide the list view while that item runs.
     - Note: Some versions of SwiftDialog appear to have bugs related to this feature along with `--blurscreen`.
