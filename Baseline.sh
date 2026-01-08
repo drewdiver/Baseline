@@ -1696,7 +1696,7 @@ function process_wait_for_items(){
     done
 
     # If we've defined an icon to use on pending WaitFor items
-    if "$pBuddy" -c "Print PendingWaitForIcon:" "$BaselineConfig" > /dev/null 2>&1; do
+    if "$pBuddy" -c "Print PendingWaitForIcon:" "$BaselineConfig" > /dev/null 2>&1; then
         # Read the icon to use
         waitForPendingIcon="$("$pBuddy" -c "Print PendingWaitForIcon:" "$BaselineConfig")"
         # Apply that status icon to all WaitFor items
