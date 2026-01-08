@@ -1695,15 +1695,15 @@ function process_wait_for_items(){
         waitCount=$(( waitCount + 1 ))
     done
 
-    waitForPendingIcon=""
-
-    for pendingDisplayName in "${waitForDisplayNames[@]}"; do
-        dialog_status "${pendingDisplayName}" "${waitForPendingIcon}"
-    done
-    # Put all of our WaitFor items into spinny wait mode
-    #for waitForDisplayName in "${waitForDisplayNames[@]}"; do
-    #   dialog_command "listitem: title: $waitForDisplayName, status: wait"
-    #done
+    # If we've defined an icon to use on pending WaitFor items
+    if "$pBuddy" -c "Print PendingWaitForIcon:" "$BaselineConfig" > /dev/null 2>&1; do
+        # Read the icon to use
+        waitForPendingIcon="$("$pBuddy" -c "Print PendingWaitForIcon:" "$BaselineConfig")"
+        # Apply that status icon to all WaitFor items
+        for pendingDisplayName in "${waitForDisplayNames[@]}"; do
+            dialog_status "${pendingDisplayName}" "${waitForPendingIcon}"
+        done
+    fi
 
     # While we still have paths we're waiting for
     while [ -n "$waitForPaths" ] ; do
