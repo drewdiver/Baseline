@@ -14,6 +14,7 @@
 	<integer>1</integer>
 	<key>pfm_last_modified</key>
 	<date>2025-11-02T00:00:00Z</date>
+	<key>pfm_platforms</key>
 	<array>
 		<string>macOS</string>
 	</array>
