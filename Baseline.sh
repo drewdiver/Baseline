@@ -1,12 +1,11 @@
 #!/bin/zsh --no-rcs
-set -x
 #dryRun=true
 
 #   Written by Trevor Sysock of Second Son Consulting
 #   @BigMacAdmin on the MacAdmins Slack
 #   trevor@secondsonconsulting.com
 
-scriptVersion="2.3"
+scriptVersion="3.0"
 
 # MIT License
 # 
@@ -31,6 +30,13 @@ scriptVersion="2.3"
 # SOFTWARE.
 # 
 
+if [[ "$1" == "--version" ]]; then
+    echo "$scriptVersion"
+    exit 0
+fi
+# Configuring verbose mode
+set -x
+
 ########################################################################################################
 ########################################################################################################
 ##
@@ -38,11 +44,6 @@ scriptVersion="2.3"
 ##
 ########################################################################################################
 ########################################################################################################
-
-if [ "${1}" = '--version' ]; then
-    echo "$(basename $0) by Second Son Consulting - v. $scriptVersion"
-    exit 0
-fi
 
 #################################
 #   Declare file/folder paths   #
@@ -59,7 +60,7 @@ BaselineScripts="$BaselineDir/Scripts"
 BaselinePackages="$BaselineDir/Packages"
 BaselineIcons="$BaselineDir/Icons"
 BaselineLaunchDaemon="/Library/LaunchDaemons/com.secondsonconsulting.baseline.plist"
-BaselineTempIconsDir=$(mktemp -d "${BaselineTempDir}/baselineTmpIcons.XXXX")
+BaselineTempIconsDir="${BaselineTempDir}/TempIconsDir" ; mkdir "$BaselineTempIconsDir"
 ScriptOutputLog="/var/log/Baseline-ScriptsOutput.log"
 
 #Binaries
@@ -69,8 +70,8 @@ dialogAppPath="/Library/Application Support/Dialog/Dialog.app"
 installomatorPath="/usr/local/Installomator/Installomator.sh"
 
 #Other stuff
-dialogCommandFile=$(mktemp "${BaselineTempDir}/baselineDialog.XXXXXX")
-dialogJsonFile=$(mktemp "${BaselineTempDir}/baselineJson.XXXX")
+dialogCommandFile="${BaselineTempDir}/commandfile.log" ; touch "$dialogCommandFile"
+dialogJsonFile="${BaselineTempDir}/listview.json" ; touch "$dialogJsonFile"
 expectedDialogTeamID="PWA5E9TQ59"
 defaultWaitForTimeout=600
 
@@ -78,6 +79,22 @@ defaultWaitForTimeout=600
 jamfLogFile="/private/var/log/jamf.log"
 
 chmod -R 655 "${BaselineTempDir}"
+
+# As User Stuff
+currentUser=$( echo "show State:/Users/ConsoleUser" | scutil | awk '/Name :/ { print $3 }' )
+uid=$(id -u "$currentUser" 2> /dev/null)
+
+# convenience function to run a command as the current user
+# usage:
+#   runAsUser command arguments...
+runAsUser() {  
+  # shellcheck disable=SC2236
+  if [ "$currentUser" != "loginwindow" ] && [ ! -z "$currentUser" ]; then
+    launchctl asuser "$uid" sudo -u "$currentUser" "$@"
+  else
+    echo "No user logged in"
+  fi
+}
 
 ########################################################################################################
 ########################################################################################################
@@ -196,13 +213,19 @@ function cleanup_and_exit(){
     done
 
     kill "$caffeinatepid"
-    dialog_command "quit:" 
-    rm_if_exists "${BaselineTempDir}"
+    dialog_command "quit:"
+
+    # Keep temp files if that option was provided
+    if [[ "$keepTempFiles" == true ]]; then
+        echo "keepTemp option is true - Declining to delete temp dir: $BaselineTempDir"
+    else
+        rm_if_exists "${BaselineTempDir}"
+    fi
+
     if [ "$dryRun" != true ] && [ "$cleanupBaselineDirectory" = "true" ] ; then
         rm_if_exists "$BaselineDir"
     fi
-    # Delete Baseline Temp Dir 
-    rm_if_exists "${BaselineTempDir}"
+
     exit "$1"
 }
 
@@ -240,12 +263,18 @@ function cleanup_and_restart(){
         rm_if_exists "$BaselineDir"
     fi
 
+    # Keep temp files if that option was provided
+    if [[ "$keepTempFiles" == true ]]; then
+        echo "keepTemp option is true - Declining to delete temp dir: $BaselineTempDir"
+    else
+        rm_if_exists "${BaselineTempDir}"
+    fi
+
     # Determine exit configuration
     # If ForceRestart is set to false,  and dry run is off
     if $forceRestart && ! $dryRun ; then
         report_message "Force Restart is configured. Restarting"
         # Delete Baseline Temp Dir 
-        rm_if_exists "${BaselineTempDir}"
         log_message "Forcing restart"
         shutdown -r now
     # If Force Log Out is set to true, and dry run is off
@@ -253,12 +282,10 @@ function cleanup_and_restart(){
         report_message "Force Log Out is set to true."
         osascript -e "tell application \"/System/Library/CoreServices/loginwindow.app\" to «event aevtrlgo»"
         # Delete Baseline Temp Dir 
-        rm_if_exists "${BaselineTempDir}"
         exit "$1"
     elif ! $forceLogOut && ! $forceRestart && ! $dryRun; then
         report_message "Force Log Out and Force Restart are false. Exiting with no action."
         # Delete Baseline Temp Dir 
-        rm_if_exists "${BaselineTempDir}"
         exit "$1"
     # If the script is in DryRun mode
     elif $dryRun; then
@@ -266,14 +293,12 @@ function cleanup_and_restart(){
         report_message "ForceRestart is set to: $forceRestart"
         report_message "ForceLogOut is set to: $forceLogOut"
         # Delete Baseline Temp Dir 
-        rm_if_exists "${BaselineTempDir}"
         exit "$1"
     fi
 
     # Shutting down
     log_message "Unknown ExitAction determined. Falling back on default to ForceRestart"
     # Delete Baseline Temp Dir 
-    rm_if_exists "${BaselineTempDir}"
     shutdown -r now
 }
 
@@ -288,6 +313,24 @@ function no_sleeping(){
 function dialog_command(){
     /bin/echo "$@"  >> $dialogCommandFile
     sleep .1
+}
+
+function dialog_status(){
+    # $1 is the item name
+    # $2 is the status to apply
+
+    # If we aren't showing the list, no need to update status
+    if [[ "$showList" == false ]]; then
+        return 0
+    fi
+    
+    # If we're in Inspect Mode, no need to update status
+    if [[ "$inspectMode" == true ]]; then
+        return 0
+    fi
+
+    dialog_command "listitem: title: ${1}, status: ${2}"
+
 }
 
 #This function is modified from the awesome one given to us via Adam Codega. Thanks Adam!
@@ -390,7 +433,7 @@ function wait_for_user(){
         sleep 1
         else
             #Logged in user found, but continue the loop until Dock and Finder processes are running
-            if pgrep -q "dock" && pgrep -q "Finder"; then
+            if pgrep -xq "Dock" && pgrep -xq "Finder"; then
                 uid=$(id -u "$currentUser")
                 log_message "Verified User is logged in: $currentUser UID: $uid"
                 verifiedUser="true"
@@ -458,6 +501,73 @@ function build_installomator_array(){
     done
 }
 
+function set_current_list_icons(){
+    ## Check for custom status icon for this item
+    # $1 = category of item we are processing
+    # Defaults
+    currentStatusIconWait="${globalStatusIconWait}"
+    currentStatusIconSuccess="${globalStatusIconSuccess}"
+    currentStatusIconFail="${globalStatusIconFail}"
+
+    # If custom values are in the profile, use them
+    if $pBuddy -c "Print :${1}:${currentIndex}:StatusIconWait" "$BaselineConfig" > /dev/null 2>&1; then
+        currentStatusIconWait=$($pBuddy -c "Print :${1}:${currentIndex}:StatusIconWait" "$BaselineConfig")
+    fi
+
+    if $pBuddy -c "Print :${1}:${currentIndex}:StatusIconSuccess" "$BaselineConfig" > /dev/null 2>&1; then
+        currentStatusIconSuccess=$($pBuddy -c "Print :${1}:${currentIndex}:StatusIconSuccess" "$BaselineConfig")
+    fi
+
+    if $pBuddy -c "Print :${1}:${currentIndex}:StatusIconFail" "$BaselineConfig" > /dev/null 2>&1; then
+        currentStatusIconFail=$($pBuddy -c "Print :${1}:${currentIndex}:StatusIconFail" "$BaselineConfig")
+    fi
+}
+
+function set_current_retries() {
+    ## Check for custom retries for this item
+    # $1 = category of item we are processing
+
+    # If custom values are in the profile, use them
+    if $pBuddy -c "Print :${1}:${currentIndex}:Retries" "$BaselineConfig" > /dev/null 2>&1; then
+        currentRetries=$($pBuddy -c "Print :${1}:${currentIndex}:Retries" "$BaselineConfig")
+    else
+        case "$1" in
+            Packages)
+                currentRetries="$defaultPackageRetries"
+                ;;
+            Installomator)
+                currentRetries="$defaultInstallomatorRetries"
+                ;;
+            *Scripts)
+                currentRetries="$defaultScriptRetries"
+                ;;
+            *)
+                # Default to global retries
+                currentRetries="0"
+                ;;
+        esac
+    fi
+
+}
+
+function set_current_curl_options(){
+    ## Check for curl options for this item
+    # $1 = category of item we are processing
+    # Defaults
+    curlOptions=()
+    curlConfigOptions=()
+    # If custom values are in the profile, use them
+    if $pBuddy -c "Print :${1}:${currentIndex}:CurlOptions" "$BaselineConfig" > /dev/null 2>&1; then
+        curlConfigOptions=$($pBuddy -c "Print :${1}:${currentIndex}:CurlOptions" "$BaselineConfig")
+    fi
+
+    # Read these into an array we can pass at runtime, using eval to split and read input
+    if [ -n "$curlConfigOptions" ]; then
+        eval 'for option in '$curlConfigOptions'; do curlOptions+=$option; done'
+    fi
+
+}
+
 function process_installomator_labels(){
     #Set an index internal to this function
     currentIndex=0
@@ -478,6 +588,24 @@ function process_installomator_labels(){
             #This label does not have options defined
             currentArguments=""
         fi
+
+        ## Check for custom status icon for this item
+        set_current_list_icons Installomator
+
+        # Check if we need to hide/show the List View for this item
+        if $pBuddy -c "Print :Installomator:${currentIndex}:HideListView" "$BaselineConfig" > /dev/null 2>&1; then
+            # Hide or show is set
+            local hideListChoice="$($pBuddy -c "Print :Installomator:${currentIndex}:HideListView" "$BaselineConfig")"
+            if [[ "$hideListChoice" == true ]]; then
+                show_or_hide hide
+            else
+                show_or_hide show
+            fi
+        else
+            # Default is to show
+            show_or_hide show
+        fi
+
         #Now we have to do a trick in case there are multiple arguments, some of which are quoted together
         #Consider: /path/to/script.sh --font "Times New Roman"
         #Used the eval trick outlined here: https://superuser.com/questions/1066455/how-to-split-a-string-with-quotes-like-command-arguments-in-bash
@@ -497,25 +625,49 @@ function process_installomator_labels(){
             currentArgumentArray+=DIALOG_LIST_ITEM_NAME=\"$currentDisplayName\"
         else
             #Update the dialog window so that this item shows as "pending"
-            dialog_command "listitem: title: $currentDisplayName, status: wait"        
+            dialog_status "$currentDisplayName" "${currentStatusIconWait}"        
         fi
         
         set_progressbar_text "$currentDisplayName"
-        #Call installomator with our desired options. Default options first, so that they can be overriden by "currentArguments"
-        $installomatorPath $currentLabel ${defaultInstallomatorOptions[@]} ${currentArgumentArray[@]} > /dev/null 2>&1
-        installomatorExitCode=$?
-        if [ $installomatorExitCode != 0 ]; then
-            report_message "Failed Item - Installomator: $currentLabel - Exit Code: $installomatorExitCode"
+
+        ## Check for custom retries count for this item
+        set_current_retries Installomator
+
+        # Set variables for retries
+        currentAttemptCount=0
+        currentItemComplete=false
+        # While our attempted retries are less than or equal to our max retry count (and if this item hasn't completed successfully already)
+        while [[ "$currentAttemptCount" -le "$currentRetries" ]] && [[ "$currentItemComplete" != "true" ]]; do
+            # If this isn't our first try, sleep for the appropriate amount of seconds before retrying
+            if [[ "$currentAttemptCount" -gt 0 ]]; then
+                sleep "$sleepBetweenRetries"
+            fi                
+            # Increase our retry attempted count
+            currentAttemptCount="$(( currentAttemptCount + 1 ))"
+
+            #Call installomator with our desired options. Default options first, so that they can be overriden by "currentArguments"
+            $installomatorPath $currentLabel ${defaultInstallomatorOptions[@]} ${currentArgumentArray[@]} > /dev/null 2>&1
+            installomatorExitCode=$?
+            # If we were successful, set item complete to true so retries stop looping
+            if [[ $installomatorExitCode == 0 ]]; then
+                currentItemComplete="true"
+            else
+                report_message "Unsuccessful attempt - Installomator runtime error: $currentLabel on attempt $currentAttemptCount with retry count $currentRetries - Exit Code: $installomatorExitCode"
+            fi
+        done
+
+        if [[ "$currentItemComplete" != "true" ]]; then
+            report_message "Failed Item - Installomator: $currentLabel after $currentAttemptCount attempts - Exit Code: $installomatorExitCode"
             failList+=("$currentDisplayName")
             # If we're NOT using the integrated SwiftDialog, then
             if  [[ $useInstallomatorSwiftDialogIntegration != "true" ]]; then
-                dialog_command "listitem: title: $currentDisplayName, status: fail"
+                dialog_status "$currentDisplayName" "${currentStatusIconFail}"
             fi
         else
             report_message "Successful Item - Installomator: $currentLabel"
             successList+=("$currentDisplayName")
             if  [[ $useInstallomatorSwiftDialogIntegration != "true" ]]; then
-                dialog_command "listitem: title: $currentDisplayName, status: success"
+                dialog_status "$currentDisplayName" "${currentStatusIconSuccess}"
             fi
        fi
         update_tracker "$currentDisplayName" $installomatorExitCode
@@ -617,18 +769,27 @@ function process_scripts(){
         currentScriptPath=$($pBuddy -c "Print :${1}:${currentIndex}:ScriptPath" "$BaselineConfig")
         #Set where we are running in the user context or root
         asUser=$($pBuddy -c "Print :${1}:${currentIndex}:AsUser" "$BaselineConfig" 2> /dev/null)
+
+        ## Check for custom status icon for this item
+        set_current_list_icons Scripts
+
         #Check if the defined script is a remote path
         if [[ ${currentScriptPath:0:4} == "http" ]]; then
             #Set variable to the base file name to be downloaded
             currentScript="$BaselineScripts/"$(basename "$currentScriptPath")
+
+            # Set custom curl options for this item:
+            set_current_curl_options "${1}"
+
             #Download the remote script, and put it in the Baseline Scripts directory
-            curl -s --fail-with-body "${currentScriptPath}" -o "$currentScript"
+            curl ${curlOptions[@]} -s --fail-with-body "${currentScriptPath}" -o "$currentScript"
             #Capture the exit code of our curl command
             scriptDownloadExitCode=$?
             #Check if curl exited cleanly
             if [ "$scriptDownloadExitCode" != 0 ];then
                 #Report a failed download
-                report_message "Failed Item - Script download error: $currentScriptPath"
+                report_message "Failed Item: $currentDisplayName - Script download error: $currentScriptPath"
+                failList+=("$currentDisplayName")
                 #Rm the output of our curl command. This will result in it being processed as a failure
                 rm_if_exists "$currentScript"
             else
@@ -650,7 +811,7 @@ function process_scripts(){
             currentIndex=$((currentIndex+1))
             increment_progress_bar
             # Report the fail
-            dialog_command "listitem: title: $currentDisplayName, status: fail"
+            dialog_status "$currentDisplayName" "${currentStatusIconFail}"
             failList+=("$currentDisplayName")
             update_tracker $currentDisplayName 99
             # Bail this pass through the while loop and continue processing next item
@@ -677,7 +838,7 @@ function process_scripts(){
                     increment_progress_bar
                 fi
                 # Report the fail
-                dialog_command "listitem: title: $currentDisplayName, status: fail"
+                dialog_status "$currentDisplayName" "${currentStatusIconFail}"
                 failList+=("$currentDisplayName")
                 # Bail this pass through the while loop and continue processing next item
                 continue
@@ -700,7 +861,7 @@ function process_scripts(){
                     increment_progress_bar
                 fi
                 # Report the fail
-                dialog_command "listitem: title: $currentDisplayName, status: fail"
+                dialog_status "$currentDisplayName" "${currentStatusIconFail}"
                 failList+=("$currentDisplayName")
                 # Bail this pass through the while loop and continue processing next item
                 continue
@@ -723,35 +884,71 @@ function process_scripts(){
         fi
 
         #Update the dialog window so that this item shows as "pending"
-        dialog_command "listitem: title: $currentDisplayName, status: wait"
+        dialog_status "$currentDisplayName" "${currentStatusIconWait}"
 
         #Only set the progress label if we're processing Scripts, not InitialScripts since users won't see those
         if [ "$1" = "Scripts" ]; then
             set_progressbar_text "$currentDisplayName"
+            # Check if we need to hide/show the List View for this item
+            if $pBuddy -c "Print :${1}:${currentIndex}:HideListView" "$BaselineConfig" > /dev/null 2>&1; then
+                # Hide or show is set
+                local hideListChoice="$($pBuddy -c "Print :${1}:${currentIndex}:HideListView" "$BaselineConfig")"
+                if [[ "$hideListChoice" == true ]]; then
+                    show_or_hide hide
+                else
+                    show_or_hide show
+                fi
+            else
+                # Default is to show
+                show_or_hide show
+            fi
         fi
 
-        #Call our script with our desired options. Default options first, so that they can be overriden by "currentArguments"
-        if [[ $asUser == "true" ]]; then
-            if [[ -z "$currentUser" ]]; then
-                # If we don't have a user, we don't want to run this script
-                log_message "Script set to run asUser but no user logged in: $currentScript"
-                /usr/bin/false
+        ## Check for custom retries count for this item
+        set_current_retries "${1}"
+
+        # Set variables for retries
+        currentAttemptCount=0
+        currentItemComplete=false
+        # While our attempted retries are less than or equal to our max retry count (and if this item hasn't completed successfully already)
+        while [[ "$currentAttemptCount" -le "$currentRetries" ]] && [[ "$currentItemComplete" != "true" ]]; do
+            # If this isn't our first try, sleep for the appropriate amount of seconds before retrying
+            if [[ "$currentAttemptCount" -gt 0 ]]; then
+                sleep "$sleepBetweenRetries"
+            fi                
+            # Increase our retry attempted count
+            currentAttemptCount="$(( currentAttemptCount + 1 ))"
+
+            #Call our script with our desired options. Default options first, so that they can be overriden by "currentArguments"
+            if [[ $asUser == "true" ]]; then
+                if [[ -z "$currentUser" ]]; then
+                    # If we don't have a user, we don't want to run this script
+                    log_message "Script set to run asUser but no user logged in: $currentScript"
+                    /usr/bin/false
+                else
+                    log_message "Running Script: as current user - $currentUser: $currentScript ${currentArgumentArray[@]}"
+                    /bin/launchctl asuser "$currentUserUID" sudo -u "$currentUser" "$currentScript" ${currentArgumentArray[@]} >> "$ScriptOutputLog" 2>&1
+                fi
             else
-                log_message "Running Script: $currentScript as $currentUser with arguments: ${currentArgumentArray[@]}"
-                /bin/launchctl asuser "$currentUserUID" sudo -u "$currentUser" "$currentScript" ${currentArgumentArray[@]} >> "$ScriptOutputLog" 2>&1
+                log_message "Running Script: as root: $currentScript ${currentArgumentArray[@]}"
+                "$currentScript" ${currentArgumentArray[@]} >> "$ScriptOutputLog" 2>&1
             fi
-        else
-            log_message "Running Script: $currentScript as root with arguments: ${currentArgumentArray[@]}"
-            "$currentScript" ${currentArgumentArray[@]} >> "$ScriptOutputLog" 2>&1
-        fi
-        scriptExitCode=$?
-        if [ $scriptExitCode != 0 ]; then
-            report_message "Failed Item - Script runtime error: $currentScript - Exit Code: $scriptExitCode"
-            dialog_command "listitem: title: $currentDisplayName, status: fail"
+            scriptExitCode=$?
+            
+            # If we were successful, set item complete to true so retries stop looping
+            if [[ $scriptExitCode == 0 ]]; then
+                currentItemComplete="true"
+            else
+                report_message "Unsuccessful attempt - Script runtime error: $currentScript on attempt $currentAttemptCount with retry count $currentRetries - Exit Code: $scriptExitCode"
+            fi
+        done
+        if [[ "$currentItemComplete" != "true" ]]; then
+            report_message "Failed Item - Script runtime error: $currentScript after $currentAttemptCount attempts - Exit Code: $scriptExitCode"
+            dialog_status "$currentDisplayName" "${currentStatusIconFail}"
             failList+=("$currentDisplayName")
         else
             report_message "Successful Item - Script: $currentScript"
-            dialog_command "listitem: title: $currentDisplayName, status: success"
+            dialog_status "$currentDisplayName" "${currentStatusIconSuccess}"
             successList+=("$currentDisplayName")
         fi
         update_tracker $currentDisplayName $scriptExitCode
@@ -776,6 +973,7 @@ function process_scripts(){
             fi
         fi
     done
+    
 }
 
 function process_pkgs(){
@@ -804,7 +1002,10 @@ function process_pkgs(){
         currentDisplayName=$($pBuddy -c "Print :Packages:${currentIndex}:DisplayName" "$BaselineConfig")
         #Set the current package path
         currentPKGPath=$($pBuddy -c "Print :Packages:${currentIndex}:PackagePath" "$BaselineConfig")
-        
+
+        ## Check for custom status icon for this item
+        set_current_list_icons Packages
+
         ##Here is where we begin checking what kind of PKG was defined, and how to process it
         ##The end result of this chunk of code, is that we have a valid path to a PKG on the file system
         ##Else we bail and continue looping to install the next item
@@ -816,20 +1017,29 @@ function process_pkgs(){
             pkgBasename=$(basename "$currentPKGPath")
             #Set the "currentPKG" variable, this gets used as the download path as well as processed later
             currentPKG="$BaselinePackages"/"$pkgBasename"
+            # Append .pkg to $pkgBasename if it does not end with .pkg
+            if [[ "$pkgBasename" != *.pkg ]]; then
+                pkgBasename="${pkgBasename}.pkg"
+            fi
             #Check for conflict. If there's already a PKG in the directory we're downloading to, delete it
             rm_if_exists "$currentPKG"
+
+            # Set custom curl options for this item:
+            set_current_curl_options Packages
+
             #Perform the download of the remote pkg
-            curl -LJs "$currentPKGPath" -o "$currentPKG"
+            curl ${curlOptions[@]} -LJs "$currentPKGPath" -o "$currentPKG"
             #Capture the output of our curl command
             downloadResult=$?
             #Verify curl exited with 0
             if [ "$downloadResult" != 0 ]; then
-                report_message "Failed Item - Package download error: $currentPKGPath"
+                report_message "Failed Item $currentDisplayName - Package download error: $currentPKGPath"
                 # Iterate the index up one
                 currentIndex=$((currentIndex+1))
                 increment_progress_bar
                 # Report the fail
-                dialog_command "listitem: title: $currentDisplayName, status: fail"
+                dialog_status "$currentDisplayName" "${currentStatusIconFail}"
+                failList+=("$currentDisplayName")
                 # Bail this pass through the while loop and continue processing next item
                 continue
             else
@@ -848,7 +1058,7 @@ function process_pkgs(){
             currentPKG="$BaselinePackages/$currentPKGPath"
         else
             report_message "Failed Item - Package does not exist: $currentPKGPath"
-            dialog_command "listitem: title: $currentDisplayName, status: fail"
+            dialog_status "$currentDisplayName" "${currentStatusIconFail}"
             failList+=("$currentDisplayName")
             currentIndex=$((currentIndex+1))
             increment_progress_bar
@@ -894,8 +1104,22 @@ function process_pkgs(){
             expectedMD5=""
         fi
         #Update the dialog window so that this item shows as "pending"
-        dialog_command "listitem: title: $currentDisplayName, status: wait"
+        dialog_status "$currentDisplayName" "${currentStatusIconWait}"
         set_progressbar_text "$currentDisplayName"
+
+        # Check if we need to hide/show the List View for this item
+        if $pBuddy -c "Print :Packages:${currentIndex}:HideListView" "$BaselineConfig" > /dev/null 2>&1; then
+            # Hide or show is set
+            local hideListChoice="$($pBuddy -c "Print :Packages:${currentIndex}:HideListView" "$BaselineConfig")"
+            if [[ "$hideListChoice" == true ]]; then
+                show_or_hide hide
+            else
+                show_or_hide show
+            fi
+        else
+            # Default is to show
+            show_or_hide show
+        fi
 
         ## Package validation happens here
         # Check TeamID, if a value has been provided
@@ -905,13 +1129,12 @@ function process_pkgs(){
             # Check if actual does not match expected
             if [ "$expectedTeamID" != "$actualTeamID" ]; then
                 report_message "Failed Item - Package TeamID error: $currentPKG - Expected - $expectedTeamID Actual - $actualTeamID"
-                dialog_command "listitem: title: $currentDisplayName, status: fail"
                 failList+=("$currentDisplayName")
                 # Iterate the index up one
                 currentIndex=$((currentIndex+1))
                 increment_progress_bar
                 # Report the fail
-                dialog_command "listitem: title: $currentDisplayName, status: fail"
+                dialog_status "$currentDisplayName" "${currentStatusIconFail}"
                 # Bail this pass through the while loop and continue processing next item
                 continue
             else
@@ -926,13 +1149,12 @@ function process_pkgs(){
             # Check if actual does not match expected
             if [ "$expectedSHA256" != "$actualSHA256" ]; then
                 report_message "Failed Item - Package SHA256 error: $currentPKG - Expected - $expectedSHA256 Actual - $actualSHA256"
-                dialog_command "listitem: title: $currentDisplayName, status: fail"
                 failList+=("$currentDisplayName")
                 # Iterate the index up one
                 currentIndex=$((currentIndex+1))
                 increment_progress_bar
                 # Report the fail
-                dialog_command "listitem: title: $currentDisplayName, status: fail"
+                dialog_status "$currentDisplayName" "${currentStatusIconFail}"
                 update_tracker $currentDisplayName 99
                 # Bail this pass through the while loop and continue processing next item
                 continue
@@ -948,13 +1170,13 @@ function process_pkgs(){
             # Check if actual does not match expected
             if [ "$expectedMD5" != "$actualMD5" ]; then
                 report_message "Failed Item - Package MD5 error: $currentPKG - Expected - $expectedMD5 Actual - $actualMD5"
-                dialog_command "listitem: title: $currentDisplayName, status: fail"
+                dialog_status "$currentDisplayName" "${currentStatusIconFail}"
                 failList+=("$currentDisplayName")
                 # Iterate the index up one
                 currentIndex=$((currentIndex+1))
                 increment_progress_bar
                 # Report the fail
-                dialog_command "listitem: title: $currentDisplayName, status: fail"
+                dialog_status "$currentDisplayName" "${currentStatusIconFail}"
                 update_tracker $currentDisplayName 99
                 # Bail this pass through the while loop and continue processing next item
                 continue
@@ -963,18 +1185,41 @@ function process_pkgs(){
             fi
         fi
 
-        ## The package installation happens here. We do this in a variable so we can capture the output and report it for debugging
-	    pkgInstallerOutput=$(installer -allowUntrusted -pkg "$currentPKG" -target / ${currentArgumentArray[@]} )
-        # Capture the installer exit code
-        pkgExitCode=$?
+        ## Check for custom retries count for this item
+        set_current_retries Packages
+
+        # Set variables for retries
+        currentAttemptCount=0
+        currentItemComplete=false
+        # While our attempted retries are less than or equal to our max retry count (and if this item hasn't completed successfully already)
+        while [[ "$currentAttemptCount" -le "$currentRetries" ]] && [[ "$currentItemComplete" != "true" ]]; do
+            # If this isn't our first try, sleep for the appropriate amount of seconds before retrying
+            if [[ "$currentAttemptCount" -gt 0 ]]; then
+                sleep "$sleepBetweenRetries"
+            fi                
+            # Increase our retry attempted count
+            currentAttemptCount="$(( currentAttemptCount + 1 ))"
+
+            ## The package installation happens here. We do this in a variable so we can capture the output and report it for debugging
+            pkgInstallerOutput=$(installer -allowUntrusted -pkg "$currentPKG" -target / ${currentArgumentArray[@]} )
+            # Capture the installer exit code
+            pkgExitCode=$?
+
+            # If we were successful, set item complete to true so retries stop looping
+            if [[ $pkgExitCode == 0 ]]; then
+                currentItemComplete="true"
+            else
+                report_message "Unsuccessful attempt - Package installation error: $currentPKG on attempt $currentAttemptCount with retry count $currentRetries - Exit Code: $pkgExitCode"
+            fi
+        done
         # Verify the install completed successfully
-        if [ $pkgExitCode != 0 ]; then
-            report_message "Failed Item - Package installation error: $currentPKG - Exit Code: $pkgExitCode"
-            dialog_command "listitem: title: $currentDisplayName, status: fail"
+        if [[ "$currentItemComplete" != "true" ]]; then
+            report_message "Failed Item - Package installation error: $currentPKG on attempt $currentAttemptCount - Exit Code: $pkgExitCode"
+            dialog_status "$currentDisplayName" "${currentStatusIconFail}"
             failList+=("$currentDisplayName")
         else
             report_message "Successful Item - Package: $currentPKG"
-            dialog_command "listitem: title: $currentDisplayName, status: success"
+            dialog_status "$currentDisplayName" "${currentStatusIconSuccess}"
             successList+=("$currentDisplayName")
         fi
         update_tracker $currentDisplayName $pkgExitCode
@@ -996,17 +1241,22 @@ function copy_icons_dir(){
 }
 
 function build_dialog_json_file(){
-    # Initiate Json file
-    /bin/echo "{\"listitem\" : [" >> $dialogJsonFile
-    # For each item in our list, add the Json line
-    for jsonItem in $dialogListJson; do
-        /bin/echo "$jsonItem" >> $dialogJsonFile
-    done
-    # This trick removes the final character from the file, to ensure a valid Json
-    cat "$dialogJsonFile" | sed '$ s/.$//' > "${BaselineTempDir}/tempJson1"
-    mv "${BaselineTempDir}/tempJson1" "$dialogJsonFile"
-    # Finish Json file
-    /bin/echo "]}" >> "$dialogJsonFile"
+    # If we're choosing to not list items, overwrite the dialogJsonFile with an empty json string
+    if [[ "$showList" == false ]]; then
+        echo '{}' > "$dialogJsonFile"
+    else
+        # Initiate Json file
+        /bin/echo "{\"listitem\" : [" >> $dialogJsonFile
+        # For each item in our list, add the Json line
+        for jsonItem in $dialogListJson; do
+            /bin/echo "$jsonItem" >> $dialogJsonFile
+        done
+        # This trick removes the final character from the file, to ensure a valid Json
+        cat "$dialogJsonFile" | sed '$ s/.$//' > "${BaselineTempDir}/tempJson1"
+        mv "${BaselineTempDir}/tempJson1" "$dialogJsonFile"
+        # Finish Json file
+        /bin/echo "]}" >> "$dialogJsonFile"
+    fi
 
     # Set global read permissions for Json file
     chmod 644 "$dialogJsonFile"
@@ -1148,14 +1398,10 @@ function increment_progress_bar(){
     # If we're not displaying the progress bar, skip
     if [ "$showProgressBar" != "true" ]; then
         return
+    else
+        dialog_command "progress: increment"
+        return 
     fi
-
-    # Increment progress bar
-    progressBarValue=$((progressBarValue+1))
-    # Do the math to determine total progress bar size for real increment
-    progressBarPercentage=$((progressBarValue*100/progressBarTotal))
-    
-    dialog_command "progress: $progressBarPercentage"
 }
 
 function set_progressbar_text(){
@@ -1168,6 +1414,18 @@ function set_progressbar_text(){
 }
 
 function present_failure_window(){
+    # Checking if we are skipping the success window
+    if $pBuddy -c "Print :SkipFailDialog" "$BaselineConfig" > /dev/null 2>&1; then
+        skipFailDialog=$($pBuddy -c "Print :SkipFailDialog" "$BaselineConfig")
+    else
+        skipFailDialog="false"
+    fi
+
+    if [[ "$skipFailDialog" == true ]]; then
+        log_message "Skipping Fail window"
+        return 0
+    fi
+
     #There was at least one failed item. Build fail list
     failListItems=()
     for i in ${failList[@]}; do
@@ -1199,6 +1457,18 @@ function present_failure_window(){
 }
 
 function present_success_window(){
+    # Checking if we are skipping the success window
+    if $pBuddy -c "Print :SkipSuccessDialog" "$BaselineConfig" > /dev/null 2>&1; then
+        skipSuccessDialog=$($pBuddy -c "Print :SkipSuccessDialog" "$BaselineConfig")
+    else
+        skipSuccessDialog="false"
+    fi
+
+    if [[ "$skipSuccessDialog" == true ]]; then
+        log_message "Skipping success window"
+        return 0
+    fi
+
     #Create our Success Dialog Window. We use a "while" loop and a nested if/then in order to bail if there's a configuration file problem.
     #Set a timer for our attempts
     dialogAttemptCount=1
@@ -1424,11 +1694,16 @@ function process_wait_for_items(){
         waitForDisplayNames+=$("$pBuddy" -c "Print WaitFor:${waitCount}:DisplayName" "$BaselineConfig")
         waitCount=$(( waitCount + 1 ))
     done
-    
-    # Put all of our WaitFor items into spinny wait mode
-    #for waitForDisplayName in "${waitForDisplayNames[@]}"; do
-    #   dialog_command "listitem: title: $waitForDisplayName, status: wait"
-    #done
+
+    # If we've defined an icon to use on pending WaitFor items
+    if "$pBuddy" -c "Print PendingWaitForIcon:" "$BaselineConfig" > /dev/null 2>&1; then
+        # Read the icon to use
+        waitForPendingIcon="$("$pBuddy" -c "Print PendingWaitForIcon:" "$BaselineConfig")"
+        # Apply that status icon to all WaitFor items
+        for pendingDisplayName in "${waitForDisplayNames[@]}"; do
+            dialog_status "${pendingDisplayName}" "${waitForPendingIcon}"
+        done
+    fi
 
     # While we still have paths we're waiting for
     while [ -n "$waitForPaths" ] ; do
@@ -1446,6 +1721,7 @@ function process_wait_for_items(){
                     debug_message "Removing from waitForDisplayNames: $waitForDisplayNames[${indexItemToRemove}] index: ${indexItemToRemove}"
                     # Mark the item as complete
                     dialog_command "listitem: title: $waitForDisplayNames[$indexItemToRemove], status: success"
+                    dialog_status "$waitForDisplayNames[$indexItemToRemove]" "${globalStatusIconSuccess}"
                     report_message "Successful Item - WaitFor: $waitForDisplayNames[$indexItemToRemove]"
                     successList+=("$waitForDisplayNames[$indexItemToRemove]")
                     increment_progress_bar
@@ -1458,7 +1734,88 @@ function process_wait_for_items(){
         # Sleep 2 seconds between checking for all items
         sleep 2
     done
+}
 
+function check_inspect_mode(){
+    if $pBuddy -c "Print :InspectModeJSON" "$BaselineConfig" > /dev/null 2>&1; then
+        inspectModeJSON=$($pBuddy -c "Print :InspectModeJSON" "$BaselineConfig")
+        inspectMode=true
+    else
+        inspectMode="false"
+    fi
+
+    }
+
+function check_showlist_option(){
+    if $pBuddy -c "Print :ShowList" "$BaselineConfig" > /dev/null 2>&1; then
+        showList=$($pBuddy -c "Print :ShowList" "$BaselineConfig")
+    else
+        showList="true"
+    fi
+
+}
+
+function set_default_retry_values(){
+
+    defaultScriptRetries=0
+    defaultInstallomatorRetries=0
+    defaultPackageRetries=0
+    defaultSleepBetweenRetries=5
+
+    # Get the Global Retries value from config, if it exists, otherwise set to Baseline default
+    if $pBuddy -c "Print :DefaultScriptRetries" "$BaselineConfig" > /dev/null 2>&1; then
+        defaultScriptRetries=$($pBuddy -c "Print :DefaultScriptRetries" "$BaselineConfig")
+    fi
+
+    # Get the Global Retries value from config, if it exists, otherwise set to Baseline default
+    if $pBuddy -c "Print :DefaultInstallomatorRetries" "$BaselineConfig" > /dev/null 2>&1; then
+        defaultInstallomatorRetries=$($pBuddy -c "Print :DefaultInstallomatorRetries" "$BaselineConfig")
+    fi
+
+    # Get the Global Retries value from config, if it exists, otherwise set to Baseline default
+    if $pBuddy -c "Print :DefaultPackageRetries" "$BaselineConfig" > /dev/null 2>&1; then
+        defaultPackageRetries=$($pBuddy -c "Print :DefaultPackageRetries" "$BaselineConfig")
+    fi
+
+    # Get the Global Sleep Between Retries value from config, if it exists, otherwise set to Baseline default
+    if $pBuddy -c "Print :SleepBetweenRetries" "$BaselineConfig" > /dev/null 2>&1; then
+        sleepBetweenRetries=$($pBuddy -c "Print :SleepBetweenRetries" "$BaselineConfig")
+    else
+        sleepBetweenRetries="$defaultSleepBetweenRetries"
+    fi
+
+}
+
+function show_or_hide(){
+    # $1 is show | hide , no other supported arguments
+    if [[ "$1" != "show" ]] && [[ "$1" != "hide" ]]; then
+        log_message "ERROR TO DEBUG: show_or_hide was given a bad argument: $1"
+        return 1
+    fi
+
+    # If silent mode is enabled, we don't need to do the show/hide dance
+    if $silentModeEnabled; then
+        return 0
+    fi
+
+    # If we are asked to show, but we are already showing, do nothing
+    if [[ "$1" == "show" ]] && [[ "$currentlyShowingList" == true ]]; then
+        return 0
+    fi
+
+    # If we are asked to hide, but we are already hiding, do nothing
+    if [[ "$1" == "hide" ]] && [[ "$currentlyShowingList" == false ]]; then
+        return 0
+    fi
+
+    # Otherwise, if we asked to show then show and if we asked to hide then hide
+    if [[ "$1" == "show" ]]; then
+        dialog_command "show:"
+        currentlyShowingList=true
+    else
+        dialog_command "hide:"
+        currentlyShowingList=false
+    fi
 
 }
 
@@ -1508,24 +1865,31 @@ if [ -z $dryRun ]; then
 fi
 
 while [ ! -z "$1" ]; do
-    case $1 in; 
+    case $1 in
         "/")
             log_message "Shifting arguments for Jamf"
             shift 2
             ;;
-        -c|--config|--configuration)
-            shift
-            if [ -e "$1" ] && $pBuddy -c "Print" "${1}" > /dev/null 2>&1; then
-                log_message "Using configuration profile from argument: $1"
-                BaselineConfig="$1"
+        -c|--config|--configuration|--configuration=*)
+            # Set config path name, respecting = sign as provided value
+            if [[ "$1" == *=* ]]; then
+                BaselineConfig="${1##*=}"
+            else
+                BaselineConfig="${2}"
+                shift
+            fi
+
+            if [ -e "$BaselineConfig" ] && $pBuddy -c "Print" "${BaselineConfig}" > /dev/null 2>&1; then
+                log_message "Using configuration profile from argument: $BaselineConfig"
+                #BaselineConfig="$1"
                 function verify_configuration_file(){
                     true
                 }
                 configFromArgument=true
-            elif [ ! -e "$1" ]; then
-                cleanup_and_exit 80 "ERROR: Configuration not found: $1"
+            elif [ ! -e "$BaselineConfig" ]; then
+                cleanup_and_exit 80 "ERROR: Configuration not found: $BaselineConfig"
             else
-                cleanup_and_exit 81 "ERROR: Invalid configuration file: $1"
+                cleanup_and_exit 81 "ERROR: Invalid configuration file: $BaselineConfig"
             fi
             ;;
         -s|--silent|--silent-mode)
@@ -1534,6 +1898,9 @@ while [ ! -z "$1" ]; do
             ;;
         -t|--tracker)
             useTracker=true
+            ;;
+        -k|--keep|--keeptemp)
+            keepTempFiles=true
             ;;
         *)
             cleanup_and_exit 82 "Unknown argument: $1"
@@ -1554,6 +1921,7 @@ done
 verify_configuration_file
 check_silent_option
 initiate_tracker_file
+check_exit_condition
 
 #############################################
 #   Configure Default Installomator Options #
@@ -1590,6 +1958,8 @@ install_dialog
 #If swiftDialog still isn't installed, exit with an error
 if [ ! -e "$dialogAppPath" ]; then
     cleanup_and_exit 1 "ERROR: SwiftDialog failed to install after numerous attempts. Exiting."
+else
+    report_message "swiftDialog Version: $("$dialogPath" --version)"
 fi
 
 #############################################
@@ -1628,7 +1998,8 @@ pkgValidations=()
 
 # Initiate integers
 progressBarValue=0
-progressBarTotal=0
+# Start at 1 to ensure proper count
+progressBarTotal=1
 
 # Initiate bools
 showProgressBar="false"
@@ -1641,11 +2012,14 @@ progressBarDisplayNames="false"
 # Check Bail Out configuration
 check_bail_out_configuration
 
+# Get defaultretry options
+set_default_retry_values
+
 process_scripts InitialScripts
 
 #Check if a custom plist was delivered/altered during InitialScripts
 check_for_custom_plist
-
+check_bail_out_configuration
 #We check for Installomator again, to support custom plist swapping
 if $pBuddy -c "Print :Installomator:0" "$BaselineConfig" > /dev/null 2>&1; then
     install_installomator
@@ -1663,6 +2037,12 @@ check_progress_options
 # Check if there is an Icons directory, and if so make a temporary copy of it
 copy_icons_dir
 
+# Check if we're using Inspect Mode
+check_inspect_mode
+
+# Check if we have ShowList set to false
+check_showlist_option
+
 #####################################
 #   Initiate Dialog Option Arays    #
 #####################################
@@ -1670,10 +2050,12 @@ copy_icons_dir
 finalListCommand=()
 finalSuccessCommand=()
 finalFailureCommand=()
+finalInspectCommand=()
 
 finalListCommand+="$dialogPath"
 finalSuccessCommand+="$dialogPath"
 finalFailureCommand+="$dialogPath"
+finalInspectCommand+="$dialogPath"
 
 
 ######################################
@@ -1696,6 +2078,7 @@ else
     finalListCommand+="--blurscreen"
     finalSuccessCommand+="--blurscreen"
     finalFailureCommand+="--blurscreen"
+    finalInspectCommand+="--blurscreen"
 fi
 
 # Configure Blur Screen options
@@ -1717,13 +2100,33 @@ if [ -n "$dialogListArguments" ]; then
     eval 'for customization in '$dialogListArguments'; do finalListCommand+=$customization; done'
 fi
 
+# Read the Dialog List `Arguments` customizations, if there are any
+if $pBuddy -c "Print DialogInspectModeOptions" "$BaselineConfig" > /dev/null 2>&1; then
+    dialogInspectArguments=$($pBuddy -c "Print DialogInspectModeOptions" "$BaselineConfig")
+fi
+
+# If we found customizations, read them into our final list command array
+if [ -n "$dialogInspectArguments" ]; then
+    eval 'for customization in '$dialogInspectArguments'; do finalInspectCommand+=$customization; done'
+fi
+
 # This function is not with the rest, but it makes the most sense as I add on this feature.
 # I also don't know how to set the variable by passing the name of that variable as an argument to the function.
 # So I'll have to define this function several times.
 # I grow old … I grow old …I shall wear the bottoms of my trousers rolled..
 function configure_dialog_list_arguments(){
     # $1 is the SwiftDialog option to change, $2 is the default value for that option if its not included in the profile
-    if (($dialogListArguments[(Ie)$1])); then
+    local -a customization_array
+    customization_array=(${(z)dialogListArguments})
+    local found=0
+    local token
+    for token in ${customization_array[@]}; do
+        if [[ "$token" == "$1" || "$token" == "$1="* ]]; then
+            found=1
+            break
+        fi
+    done
+    if (( found )); then
         # $1 was included in the customization, so we report it and move along
         log_message "Dialog List Customization Found: $1"
     else
@@ -1745,17 +2148,32 @@ fi
 
 configure_dialog_list_arguments "--title" "Your computer setup is underway"
 configure_dialog_list_arguments "--message" "$defaultListMessage"
-configure_dialog_list_arguments "--icon" "/System/Library/CoreServices/KeyboardSetupAssistant.app/Contents/Resources/AppIcon.icns"
+configure_dialog_list_arguments "--icon" "computer"
 configure_dialog_list_arguments "--width" 900
 configure_dialog_list_arguments "--height" 550
 configure_dialog_list_arguments "--quitkey" ']'
 
-if [ "$showProgressBar" = "true" ]; then
-    configure_dialog_list_arguments "--progress"
-fi
-
 if [ "$progressBarDisplayNames" = "true" ]; then
     configure_dialog_list_arguments "--progresstext" ' '
+fi
+
+## Configure Glboal Status Icon Variables
+# Defaults
+globalStatusIconWait="wait"
+globalStatusIconSuccess="success"
+globalStatusIconFail="fail"
+
+# If custom values are in the profile, use them
+if $pBuddy -c "Print GlobalDialogStatusIconWait" "$BaselineConfig" > /dev/null 2>&1; then
+    globalStatusIconWait=$($pBuddy -c "Print GlobalDialogStatusIconWait" "$BaselineConfig")
+fi
+
+if $pBuddy -c "Print GlobalDialogStatusIconSuccess" "$BaselineConfig" > /dev/null 2>&1; then
+    globalStatusIconSuccess=$($pBuddy -c "Print GlobalDialogStatusIconSuccess" "$BaselineConfig")
+fi
+
+if $pBuddy -c "Print GlobalDialogStatusIconFail" "$BaselineConfig" > /dev/null 2>&1; then
+    globalStatusIconFail=$($pBuddy -c "Print GlobalDialogStatusIconFail" "$BaselineConfig")
 fi
 
 #########################################
@@ -1774,7 +2192,17 @@ fi
 
 function configure_dialog_success_arguments(){
     # $1 is the SwiftDialog option to change, $2 is the default value for that option if its not included in the profile
-    if (($dialogSuccessArguments[(Ie)$1])); then
+    local -a customization_array
+    customization_array=(${(z)dialogSuccessArguments})
+    local found=0
+    local token
+    for token in ${customization_array[@]}; do
+        if [[ "$token" == "$1" || "$token" == "$1="* ]]; then
+            found=1
+            break
+        fi
+    done
+    if (( found )); then
         # $1 was included in the customization, so we report it and move along
         log_message "Dialog Success Customization Found: $1"
     else
@@ -1785,7 +2213,7 @@ function configure_dialog_success_arguments(){
 }
 
 configure_dialog_success_arguments "--title" "Your computer setup is complete"
-configure_dialog_success_arguments "--icon" "/System/Library/CoreServices/KeyboardSetupAssistant.app/Contents/Resources/AppIcon.icns"
+configure_dialog_success_arguments "--icon" "computer"
 configure_dialog_success_arguments "--quitkey" ']'
 # Different values for --message and --button1text if we're forcing log out or restart
 if $forceLogOut; then
@@ -1819,7 +2247,17 @@ fi
 
 function configure_dialog_failure_arguments(){
     # $1 is the SwiftDialog option to change, $2 is the default value for that option if its not included in the profile
-    if (($dialogFailureArguments[(Ie)$1])); then
+    local -a customization_array
+    customization_array=(${(z)dialogFailureArguments})
+    local found=0
+    local token
+    for token in ${customization_array[@]}; do
+        if [[ "$token" == "$1" || "$token" == "$1="* ]]; then
+            found=1
+            break
+        fi
+    done
+    if (( found )); then
         # $1 was included in the customization, so we report it and move along
         log_message "Dialog Failure Customization Found: $1"
     else
@@ -1830,7 +2268,7 @@ function configure_dialog_failure_arguments(){
 }
 
 configure_dialog_failure_arguments "--title" "Your computer setup is complete"
-configure_dialog_failure_arguments "--icon" "/System/Library/CoreServices/KeyboardSetupAssistant.app/Contents/Resources/AppIcon.icns"
+configure_dialog_failure_arguments "--icon" "computer"
 configure_dialog_failure_arguments "--message" "Your computer setup is complete, however not everything was installed as expected. Review the list below, and contact IT if you need assistance."
 configure_dialog_failure_arguments "--quitkey" ']'
 
@@ -1858,30 +2296,63 @@ build_dialog_array WaitFor
 build_dialog_json_file
 build_dialog_list_options
 
+# Check again for bailout after Initial Scripts and after building FailDialog window options
+check_for_bail_out
 
 ##################################
 #   Draw our dialog list window  #
 ##################################
 
-#Create our initial Dialog Window. Do this in an "until" loop, and attempts 10 times before exiting in case it fails to launch for some reason
-dialogAttemptCount=1
-if ! $silentModeEnabled; then
-    until pgrep -q -f "$dialogAppPath.* --commandfile $dialogCommandFile --jsonfile $dialogJsonFile"; do
-        if [ "$dialogAttemptCount" -le 10 ]; then
-            ${finalListCommand[@]} \
-            --commandfile "$dialogCommandFile" \
-            --jsonfile "$dialogJsonFile" \
-            & sleep 1
-            dialogAttemptCount=$(( dialogAttemptCount +1 ))
-        else
-            cleanup_and_exit 1 "**WARNING** SwiftDialog failed to launch after 10 attempts. This likely indicates an issue with the options in the configuration file. Check your file paths."
-        fi
-    done
+# Add final dialog options for progress bar size
+if [ "$showProgressBar" = "true" ]; then
+    finalListCommand+="--progress"
+    finalListCommand+="$progressBarTotal"
 fi
 
-#########################
-#   Install the things  #
-#########################
+# If we're using Inspect Mode, draw the Inspect Mode window and disable our command file updates
+if [[ "$inspectMode" == true ]] && [[ -e "${inspectModeJSON}" ]]; then
+    dialogAttemptCount=1
+    if ! $silentModeEnabled; then
+        # Use an until loop to ensure Dialog launches
+        until pgrep -q -f "$dialogAppPath.* --inspect-mode*"; do 
+            if [ "$dialogAttemptCount" -le 10 ]; then
+                runAsUser ${finalInspectCommand[@]} \
+                --inspect-mode \
+                --inspect-config "$inspectModeJSON" \
+                --commandfile "$dialogCommandFile" \
+                & sleep 1
+                dialogAttemptCount=$(( dialogAttemptCount +1 ))
+            else
+                cleanup_and_exit 1 "**WARNING** SwiftDialog failed to launch after 10 attempts. This likely indicates an issue with the options in the configuration file. Check your file paths."
+            fi
+        done
+    fi
+else
+    #Create our initial Dialog Window. Do this in an "until" loop, and attempts 10 times before exiting in case it fails to launch for some reason
+    dialogAttemptCount=1
+    if ! $silentModeEnabled; then
+        # Use an until loop to ensure Dialog launches
+        until pgrep -q -f "$dialogAppPath.* --commandfile $dialogCommandFile --jsonfile $dialogJsonFile"; do
+            if [ "$dialogAttemptCount" -le 10 ]; then
+                ${finalListCommand[@]} \
+                --commandfile "$dialogCommandFile" \
+                --jsonfile "$dialogJsonFile" \
+                & sleep 1
+                dialogAttemptCount=$(( dialogAttemptCount +1 ))
+            else
+                cleanup_and_exit 1 "**WARNING** SwiftDialog failed to launch after 10 attempts. This likely indicates an issue with the options in the configuration file. Check your file paths."
+            fi
+        done
+
+    fi
+fi
+
+# Set our variable indicating we are currently showing the ListView
+currentlyShowingList=true
+
+########################
+#   Do all the things  #
+########################
 
 # Progress Bar will be pulsing until a value is set
 if [ "$showProgressBar" = "true" ]; then
@@ -1890,6 +2361,9 @@ fi
 
 # Check Bail Out configuration
 check_bail_out_configuration
+
+# Get defaultretry options
+set_default_retry_values
 
 ## Setup WaitFor loop
 # Check for a custom "WaitForTimeout" value
