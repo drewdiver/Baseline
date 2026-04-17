@@ -17,6 +17,6 @@ Detailed documentation on how Baseline works and how to configure it can be foun
 This project wouldn’t be possible without the amazing hard work provided to the Mac Admins community. Bart Reardon, Søren Theilgaard, Armin Briegel, Adam Codega, Dan Snelson, Pico Mitchell, and all of the other amazing people maintaining and testing swiftDialog, Installomator, and other community tools.
 We are happy to have the opportunity to give back, and hope other Mac Admins might find this project useful.
 
-Thank you to Drew Diver and Mykola for feature enhancements on this project.
+Thank you to all of the Mac Admins that have contributed to this project.
 
 [macos](https://icons8.com/icon/80591/apple-logo) icon by [Icons8](https://icons8.com) used for example.
