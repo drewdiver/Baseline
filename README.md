@@ -4,11 +4,11 @@ An MDM agnostic zero touch or light touch solution for macOS.
 By leveraging swiftDialog, Installomator, and original code, Baseline provides an automated way to install applications and run scripts. Configure the behavior of Baseline via a mobileconfig or plist file. Baseline will install packages, scripts, and Installomator labels as defined in the configuration file.
 
 ## Requirements
-- macOS 12 or newer*
+- macOS 15 or newer*
 - An installation PKG for the project. Either the provided PKG or your own.
 - A configuration profile defining what Installomator labels, Packages, and/or Scripts you wish to run
 
-_*This requirement is based on the latest version requirements for swiftDialog. Older versions of swiftDialog supported macOS 11, and Baseline can be used with macOS 11 if you deploy an older swiftDialog prior to running Baseline._
+_*This requirement is based on the latest version requirements for swiftDialog. Older versions of swiftDialog started support at macOS 11, and Baseline can be used with macOS 11-14 if you deploy an older swiftDialog prior to running Baseline and avoid using any features not included in that older version._
 
 ## Visit the Wiki
 Detailed documentation on how Baseline works and how to configure it can be found in the [wiki](https://github.com/SecondSonConsulting/Baseline/wiki).
